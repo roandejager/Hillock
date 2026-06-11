@@ -1,13 +1,12 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Fully Patched - Safe Gate Edition)
+Phase 3: Unified Exocortex Orchestrator (Safe Gate & Free-Form Query Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
 and CPU-based Reservoir Context Compression.
 
-Structural Safety:
-  - Fixed (Bug 1): Removed noisy random ESN text projections. ESN runs purely as a mathematical trace.
-  - Fixed (Bug 2 & 3): Extractor dynamically registers new entities in the DB and Hebbian table.
-  - Architectural Gate: Deterministically blocks LLM rendering if no database facts are found.
-  - Autonomous Learning: Swaps hallucination failures into a JSON extraction learning loop.
+Features:
+  - Fixed (Bug 1): Replaced static templates with a Free-Form LLM Query Resolver.
+  - Fixed (Bug 2): Implemented a strict Python pre-filter to block question extraction.
+  - Fixed (Bug 3): Implemented Entity Identity Resolution to prevent identity fragmentation.
 """
 
 import sqlite3
@@ -99,10 +98,6 @@ class SQLiteKnowledgeGraph:
     def update_relation(self, source_id: str, predicate: str, new_target_id: str,
                         source_type: str = "Generic", target_type: str = "Generic") -> None:
         """Updates relations, registering entities first to satisfy foreign key rules."""
-        # Convert names to clean DB keys
-        src_key = source_id.strip().replace(" ", "_")
-        tgt_key = new_target_id.strip().replace(" ", "_")
-
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
@@ -110,16 +105,16 @@ class SQLiteKnowledgeGraph:
             # Register missing entities first
             cursor.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (src_key, src_key.replace("_", " "), source_type)
+                (source_id, source_id.replace("_", " "), source_type)
             )
             cursor.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (tgt_key, tgt_key.replace("_", " "), target_type)
+                (new_target_id, new_target_id.replace("_", " "), target_type)
             )
 
             # Update relation
-            cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
-            cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
+            cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (source_id, predicate))
+            cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (source_id, predicate, new_target_id))
             conn.commit()
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
@@ -155,7 +150,6 @@ class HebbianPlasticityEngine:
                 for j in range(i + 1, len(sorted_entities)):
                     ent_a, ent_b = sorted_entities[i], sorted_entities[j]
 
-                    # Ensure entities exist in Hebbian context before weight writing
                     cursor.execute("SELECT id FROM entities WHERE id = ?", (ent_a,))
                     if not cursor.fetchone():
                         continue
@@ -204,7 +198,7 @@ class HebbianPlasticityEngine:
 # ==========================================
 
 class EchoStateReservoir:
-    """CPU-bound Context Compressor (Maintains continuous state history mathematically) [48]."""
+    """CPU-bound Context Compressor (Maintains history state mathematically) [48]."""
     def __init__(self, d_emb: int, d_res: int, leak_rate: float = 0.3):
         self.d_emb = d_emb
         self.d_res = d_res
@@ -226,7 +220,7 @@ class EchoStateReservoir:
 
 
 # ==========================================
-# PHASE 3: SECURE GATE & EXTRACTION ORCHESTRATOR
+# PHASE 3: SECURE GATE, RESOLVER, & EXTRACTION
 # ==========================================
 
 class IntegratedExocortex:
@@ -238,51 +232,43 @@ class IntegratedExocortex:
         self.plasticity = HebbianPlasticityEngine(db_path)
         self.reservoir = EchoStateReservoir(d_emb, d_res)
 
-        # Mapping rules representing structural templates (DecID reasoning paths)
-        self.templates = [
-            (r"where was (.+?) born", "born_in"),
-            (r"what is the capital of (.+)", "capital_of"),
-            (r"what did (.+?) discover", "discovered"),
-            (r"what did (.+?) win", "won"),
-            (r"what did (.+?) crack", "cracked")
-        ]
+    def is_question(self, text: str) -> bool:
+        """
+        Fixed (Bug 2): Strict deterministic pre-filter for queries.
+        Intercepts question structures before they reach the Extractor.
+        """
+        cleaned = text.strip().lower()
+        if cleaned.endswith("?"):
+            return True
+        question_words = {"who", "what", "where", "when", "why", "how", "is", "did", "does", "was", "can", "are", "which", "whom"}
+        tokens = re.sub(r"[^\w\s]", "", cleaned).split()
+        if tokens and tokens[0] in question_words:
+            return True
+        return False
 
-        # Word embedding vocabulary
-        self.vocab: Dict[str, np.ndarray] = {}
-        np.random.seed(101)
-        core_words = ["hello", "exocortex", "where", "what", "is", "the", "capital", "born",
-                      "radioactivity", "france", "poland", "london", "uk", "enigma"]
-        for w in core_words:
-            self.vocab[w] = np.random.uniform(-1.0, 1.0, self.d_emb)
+    def resolve_entity_identity(self, name_str: str) -> str:
+        """
+        Fixed (Bug 3): Resolves entity fragmentation.
+        Maps names (e.g., 'Turing' or 'Albert Einstein') to pre-existing canonical database keys.
+        """
+        normalized_new = name_str.strip().replace(" ", "_").lower()
+        all_ids = self.kg.get_all_entity_ids()
 
-    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
-        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
-        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
-        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+        # Exact match check
+        for ent_id in all_ids:
+            if ent_id.lower() == normalized_new:
+                return ent_id
 
-    def link_entities(self, query: str) -> Set[str]:
-        detected = set()
-        normalized_query = re.sub(r"[^\w\s]", "", query).lower()
-        for entity_id in self.kg.get_all_entity_ids():
-            readable = entity_id.replace("_", " ").lower()
-            if re.search(r"\b" + re.escape(readable) + r"\b", normalized_query):
-                detected.add(entity_id)
-        return detected
+        # Substring overlap check (e.g. 'Turing' matches 'Alan_Turing')
+        for ent_id in all_ids:
+            lower_ent = ent_id.lower()
+            if normalized_new in lower_ent or lower_ent in normalized_new:
+                # Resolve to the longer canonical name
+                return ent_id if len(ent_id) >= len(normalized_new) else name_str.strip().replace(" ", "_")
 
-    def resolve_logical_path(self, query: str, active_entities: Set[str]) -> Optional[Tuple[str, str, str]]:
-        for pattern, predicate in self.templates:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                extracted_name = match.group(1).strip()
-                extracted_name = re.sub(r"[^\w\s]", "", extracted_name).lower().replace(" ", "_")
-
-                matched_entity = next((e for e in active_entities if e.lower() == extracted_name), None)
-                if matched_entity:
-                    return (matched_entity, predicate, "PLACEHOLDER_1")
-        return None
+        return name_str.strip().replace(" ", "_")
 
     def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
-        """Calls local Ollama API deterministic endpoint."""
         url = "http://localhost:11434/api/generate"
         payload = {
             "model": self.ollama_model,
@@ -304,78 +290,95 @@ class IntegratedExocortex:
         except Exception:
             return None
 
-    def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
-        """
-        Uses local LLM to extract factual declarations in strict JSON format.
-        Fails back gracefully if no declaration is found or parsing fails.
-        """
-        system_prompt = (
-            "You are a precise factual information extractor.\n"
-            "Analyze the user's message. If the user is declaring or stating a new fact (e.g. 'I was born in London' or 'Einstein cracked Enigma'), "
-            "extract the fact as a clean JSON block.\n\n"
-            "Rules:\n"
-            "1. Output ONLY valid JSON, do not include any other conversational filler.\n"
-            "2. Fields required:\n"
-            "   - 'is_factual_declaration': boolean (true if user makes a direct factual claim, false if asking a question or greeting)\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Albert_Einstein')\n"
-            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'discovered', 'cracked')\n"
-            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-        )
-
-        response = self.query_ollama(user_message, system_prompt)
-        if not response:
-            return None
-
-        # Parse JSON safely out of markdown formatting
+    def parse_json_safely(self, raw_text: str) -> Optional[dict]:
         try:
-            cleaned = re.sub(r"```json|```", "", response).strip()
+            cleaned = re.sub(r"```json|```", "", raw_text).strip()
             start = cleaned.find("{")
             end = cleaned.rfind("}")
             if start != -1 and end != -1:
-                cleaned = cleaned[start:end+1]
-                data = json.loads(cleaned)
-                if data.get("is_factual_declaration") is True:
-                    return {
-                        "subject": data.get("subject", "").strip().replace(" ", "_"),
-                        "predicate": data.get("predicate", "").strip(),
-                        "object": data.get("object", "").strip().replace(" ", "_")
-                    }
+                return json.loads(cleaned[start:end+1])
         except Exception:
             pass
         return None
 
+    def translate_query_to_path(self, query: str) -> Optional[Tuple[str, str]]:
+        """
+        Fixed (Bug 1): Free-Form Query Resolver.
+        Translates natural questions into a structured database lookup (subject, predicate).
+        Replaces the old hardcoded templates.
+        """
+        system_prompt = (
+            "You are a precise query-to-database translator.\n"
+            "Translate the user's question into a structured lookup path containing a subject and a predicate.\n\n"
+            "Rules:\n"
+            "1. Output ONLY valid JSON.\n"
+            "2. Fields required:\n"
+            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie' or 'Alan_Turing')\n"
+            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'capital_of', 'discovered', 'worked_with', 'cracked')\n"
+        )
+        response = self.query_ollama(query, system_prompt)
+        if not response:
+            return None
+
+        data = self.parse_json_safely(response)
+        if data and "subject" in data and "predicate" in data:
+            # Resolve entity identity to match canonical DB structure
+            resolved_subject = self.resolve_entity_identity(data["subject"])
+            return resolved_subject, data["predicate"].strip()
+        return None
+
+    def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
+        """Extracts conversational factual statements into JSON, resolving names."""
+        system_prompt = (
+            "You are a factual information extractor.\n"
+            "Analyze the user's message. If the user is declaring or stating a new fact, "
+            "extract the fact as a clean JSON block.\n\n"
+            "Rules:\n"
+            "1. Output ONLY valid JSON.\n"
+            "2. Fields required:\n"
+            "   - 'is_factual_declaration': boolean (true if user makes a direct factual claim, false otherwise)\n"
+            "   - 'subject': string (normalized snake_case entity name, e.g. 'Albert_Einstein')\n"
+            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'worked_with', 'discovered')\n"
+            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
+        )
+        response = self.query_ollama(user_message, system_prompt)
+        if not response:
+            return None
+
+        data = self.parse_json_safely(response)
+        if data and data.get("is_factual_declaration") is True:
+            # Resolve both subject and object identity to prevent graph fragmentation
+            sub = self.resolve_entity_identity(data.get("subject", ""))
+            obj = self.resolve_entity_identity(data.get("object", ""))
+            return {
+                "subject": sub,
+                "predicate": data.get("predicate", "").strip(),
+                "object": obj
+            }
+        return None
+
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], str]:
-        """
-        Executes an orchestrator turn.
-        Deterministically gates LLM generation, only invoking the Renderer when database facts exist [1].
-        """
-        # 1. Update CPU Reservoir Compression
-        embeddings = self._get_sentence_representation(query)
-        for vec in embeddings:
-            res_state = self.reservoir.step(vec)
-
-        # 2. Entity Linker Lookup
-        active_entities = self.link_entities(query)
-
-        # 3. Decoupled Path Resolution
-        path = self.resolve_logical_path(query, active_entities)
+        """Runs the gated, self-learning exocortex routing pipeline."""
+        # Check if the input is a question using the pre-filter
+        is_query = self.is_question(query)
 
         resolved_value = None
-        if path:
-            source_id, predicate, _ = path
-            resolved_value = self.kg.query_relation(source_id, predicate)
+        source_id, predicate = None, None
 
-        # 4. GATED RENDERER LOOP: Only call LLM if verified database facts exist [1]
+        # 1. QUERY PATHWAY: Execute retrieval check if the input is classified as a question
+        if is_query:
+            path = self.translate_query_to_path(query)
+            if path:
+                source_id, predicate = path
+                resolved_value = self.kg.query_relation(source_id, predicate)
+
+        # 2. GATED RENDERER LOOP: Only invoke LLM generation if verified database facts exist [1]
         if resolved_value:
             # Retrieve Hebbian Priming Context
-            primed_info = []
-            for ent in active_entities:
-                primed_info.extend(self.plasticity.get_associated_priming_context(ent))
+            primed_info = self.plasticity.get_associated_priming_context(source_id)
 
             # Update Hebbian co-activation weights for all active elements + target
-            all_active = active_entities.copy()
-            all_active.add(resolved_value)
-            self.plasticity.update_associations(all_active)
+            self.plasticity.update_associations({source_id, resolved_value})
 
             # Format Prompt for the Renderer
             facts_str = f"[{source_id.replace('_', ' ')} {predicate} {resolved_value.replace('_', ' ')}]"
@@ -385,33 +388,30 @@ class IntegratedExocortex:
                 "You are a language renderer. You know nothing about the conversation except what is provided here.\n"
                 f"Verified Facts: {facts_str}\n"
                 f"Context Priming: {priming_str}\n"
-                "Task: Render a single, grammatically correct response answering the user's question using ONLY the provided facts."
+                "Task: Render a single response answering the user's question using ONLY the provided facts."
             )
 
             llm_response = self.query_ollama(query, system_prompt)
             if llm_response:
                 return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, "RENDER_SUCCESS"
             else:
-                # Local renderer fallback
                 return f"Exocortex (Simulated) > {source_id.replace('_', ' ')} was resolved to {resolved_value.replace('_', ' ')}.", primed_info, "RENDER_FALLBACK"
 
-        # 5. DETERMINISTIC EXTRACTION GATE: If no facts are resolved, do not call the Renderer [1].
-        # Attempt to run the Factual Extractor instead [23].
-        extracted_fact = self.extract_factual_declaration(query)
-        if extracted_fact:
-            sub = extracted_fact["subject"]
-            pred = extracted_fact["predicate"]
-            obj = extracted_fact["object"]
+        # 3. EXTRACTION PATHWAY: If input is not a question, run the autonomous learning gate
+        if not is_query:
+            extracted_fact = self.extract_factual_declaration(query)
+            if extracted_fact:
+                sub = extracted_fact["subject"]
+                pred = extracted_fact["predicate"]
+                obj = extracted_fact["object"]
 
-            # Auto-register newly discovered entities/relation
-            self.kg.update_relation(sub, pred, obj)
+                # Auto-register relation and update associations
+                self.kg.update_relation(sub, pred, obj)
+                self.plasticity.update_associations({sub, obj})
 
-            # Update Hebbian associations for the new entities so they wire together
-            self.plasticity.update_associations({sub, obj})
+                return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{pred}]-> [{obj.replace('_', ' ')}].", [], "EXTRACT_SUCCESS"
 
-            return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{pred}]-> [{obj.replace('_', ' ')}].", [], "EXTRACT_SUCCESS"
-
-        # 6. Safe Deterministic Fallback: We have no facts, and the query is not a declaration.
+        # 4. Deterministic Gated Fallback (Hallucination Blocked)
         return "Exocortex > I do not have verified information about that.", [], "DETERMINISTIC_GATED_FALLBACK"
 
 
