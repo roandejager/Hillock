@@ -1,12 +1,13 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Closed-Loop Gated Edition)
+Phase 3: Unified Exocortex Orchestrator (HDC Reservoir & Persistent Brain Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
-and CPU-based Reservoir Context Compression.
+and CPU-bound Hyperdimensional Computing (HDC) Reservoirs.
 
-Closed-Loop Architecture:
-  - Fixed (Bug 1): Free-Form Query Resolver with Dynamic Schema Priming.
-  - Fixed (Bug 2): Rigid Python pre-filter enforcing a strict question gate.
-  - Fixed (Bug 3): Token-based Entity Linking and Identity Resolution.
+Upgrades:
+  - Fixed (Bug 1): Database persistence enabled across sessions.
+  - Fixed (Bug 2): Rigid question-filtering restricted to interrogatives.
+  - Upgrade (HDC Reservoir): Replaced ESN with 10,000-D Bipolar HDC vector loop.
+  - Upgrade (Wired Readout): Computes cosine similarity to inject top-3 active concepts.
 """
 
 import sqlite3
@@ -218,29 +219,70 @@ class HebbianPlasticityEngine:
 
 
 # ==========================================
-# PHASE 2: CONTEXT SCALING (ESN ONLY)
+# PHASE 2: HYPERDIMENSIONAL COMPUTING (HDC)
 # ==========================================
 
-class EchoStateReservoir:
-    """CPU-bound Context Compressor [48]."""
-    def __init__(self, d_emb: int, d_res: int, leak_rate: float = 0.3):
-        self.d_emb = d_emb
-        self.d_res = d_res
-        self.leak_rate = leak_rate
-        self.state = np.zeros(self.d_res)
-        self.W_in = np.random.uniform(-0.1, 0.1, (self.d_res, self.d_emb))
-        self.W_res = np.random.uniform(-0.5, 0.5, (self.d_res, self.d_res))
-        self._scale_spectral_radius(0.9)
+class HyperdimensionalReservoir:
+    """
+    CPU-bound Context Compressor using Vector Symbolic Architectures (VSA) [1, 28].
+    Replaces ESN continuous states with 10,000-dimensional bipolar hypervectors.
+    """
+    def __init__(self, d: int = 10000):
+        self.d = d
+        self.state = np.zeros(self.d, dtype=np.int32)
 
-    def _scale_spectral_radius(self, target: float) -> None:
-        radius = np.max(np.abs(np.linalg.eigvals(self.W_res)))
-        if radius > 0:
-            self.W_res = self.W_res * (target / radius)
+        # Hypervector codebook maps known entity IDs to random bipolar vectors
+        self.codebook: Dict[str, np.ndarray] = {}
 
-    def step(self, input_vector: np.ndarray) -> np.ndarray:
-        raw = np.dot(self.W_in, input_vector) + np.dot(self.W_res, self.state)
-        self.state = (1.0 - self.leak_rate) * self.state + self.leak_rate * np.tanh(raw)
+        # Self-contained vocab mappings for non-entity sentence tokens
+        self.vocab_book: Dict[str, np.ndarray] = {}
+
+    def get_or_allocate_hypervector(self, name_id: str, is_vocab_token: bool = False) -> np.ndarray:
+        """Dynamically retrieves or allocates a unique bipolar hypervector (+1/-1) [28]."""
+        book = self.vocab_book if is_vocab_token else self.codebook
+
+        if name_id not in book:
+            # Generate random bipolar hypervector
+            vector = np.random.choice([-1, 1], size=self.d).astype(np.int32)
+            book[name_id] = vector
+        return book[name_id]
+
+    def step(self, token_hv: np.ndarray) -> np.ndarray:
+        """
+        Updates the context hypervector by:
+        1. Permutation: rolling/shifting the existing state to track temporal order.
+        2. Binding: multiplying element-wise by the new token.
+        3. Bundling: adding the bound vector to the running history sum.
+        """
+        # 1. Permutation (Cyclic shift)
+        permuted_state = np.roll(self.state, shift=1)
+
+        # 2. Binding (Element-wise multiplication)
+        bound = permuted_state * token_hv
+
+        # 3. Bundling (Addition / Accumulation)
+        self.state = self.state + bound
         return self.state
+
+    def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
+        """
+        Wired Readout: Computes cosine similarity between the current context
+        hypervector and all hypervectors in the entity codebook.
+        """
+        scores = []
+        ctx_norm = np.linalg.norm(self.state)
+        if ctx_norm == 0:
+            return []
+
+        for entity_id, hv in self.codebook.items():
+            hv_norm = np.linalg.norm(hv)
+            if hv_norm == 0:
+                continue
+            similarity = np.dot(self.state, hv) / (ctx_norm * hv_norm)
+            scores.append((entity_id, similarity))
+
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
 
 
 # ==========================================
@@ -248,34 +290,34 @@ class EchoStateReservoir:
 # ==========================================
 
 class IntegratedExocortex:
-    def __init__(self, db_path: str, d_emb: int = 64, d_res: int = 128, ollama_model: str = "qwen2:1.5b"):
-        self.d_emb = d_emb
+    def __init__(self, db_path: str, d_res: int = 10000, ollama_model: str = "qwen2:1.5b"):
         self.ollama_model = ollama_model
         self.kg = SQLiteKnowledgeGraph(db_path)
         self.kg.seed_initial_knowledge()
         self.plasticity = HebbianPlasticityEngine(db_path)
-        self.reservoir = EchoStateReservoir(d_emb, d_res)
+        self.hdc = HyperdimensionalReservoir(d=d_res)
 
-        self.vocab: Dict[str, np.ndarray] = {}
-        np.random.seed(101)
-        core_words = ["hello", "exocortex", "where", "what", "is", "the", "capital", "born",
-                      "radioactivity", "france", "poland", "london", "uk", "enigma"]
-        for w in core_words:
-            self.vocab[w] = np.random.uniform(-1.0, 1.0, self.d_emb)
+        # Pre-seed hypervectors for all initial database entities
+        for ent_id in self.kg.get_all_entity_ids():
+            self.hdc.get_or_allocate_hypervector(ent_id)
 
     def is_question(self, text: str) -> bool:
-        """Fixed (Bug 2): Stricter Python pre-filter checking for syntactic question starters."""
+        """
+        Fixed (Bug 2): Rigid question-filtering restricted to interrogatives.
+        Prevents declarative sentences starting with 'is' from skipping extraction.
+        """
         cleaned = text.strip().lower()
         if cleaned.endswith("?"):
             return True
-        question_words = {"who", "what", "where", "when", "why", "how", "is", "did", "does", "was", "can", "are", "which", "whom"}
+        # Rigid set containing purely interrogative pronouns/adverbs
+        question_words = {"who", "what", "where", "when", "why", "how", "which", "whom"}
         tokens = re.sub(r"[^\w\s]", "", cleaned).split()
         if tokens and tokens[0] in question_words:
             return True
         return False
 
     def resolve_entity_identity(self, name_str: str) -> str:
-        """Fixed (Bug 3): Substring identity checks resolve names to pre-existing canonical IDs."""
+        """Resolves identity variations (e.g. 'Turing' matching 'Alan_Turing')."""
         normalized_new = name_str.strip().replace(" ", "_").lower()
         all_ids = self.kg.get_all_entity_ids()
 
@@ -291,7 +333,7 @@ class IntegratedExocortex:
         return name_str.strip().replace(" ", "_")
 
     def link_entities(self, query: str) -> Set[str]:
-        """Fixed (Bug 3): Token-based entity linker resolves names by matching individual word subparts."""
+        """Token-based entity linker resolves names by matching individual word subparts."""
         detected = set()
         query_words = set(re.sub(r"[^\w\s]", " ", query).lower().split())
 
@@ -344,10 +386,7 @@ class IntegratedExocortex:
         return None
 
     def translate_query_to_path(self, query: str, active_entities: Set[str]) -> Optional[Tuple[str, str]]:
-        """
-        Fixed (Bug 1): Free-Form Query Resolver with Dynamic Schema Priming.
-        Injects the database's existing predicates for the active entity to guide LLM translation.
-        """
+        """Translates natural questions into a structured database lookup using Dynamic Schema Priming."""
         known_predicates = set()
         with sqlite3.connect(self.kg.db_path) as conn:
             cursor = conn.cursor()
@@ -374,13 +413,10 @@ class IntegratedExocortex:
             return None
 
         data = self.parse_json_safely(response)
-
-        # Try JSON extraction
         if data and "subject" in data and "predicate" in data:
             resolved_subject = self.resolve_entity_identity(data["subject"])
             return resolved_subject, data["predicate"].strip()
 
-        # Fallback to direct regex string parsing if Qwen produces malformed JSON
         reg_sub = self.extract_field_via_regex(response, "subject")
         reg_pred = self.extract_field_via_regex(response, "predicate")
         if reg_sub and reg_pred:
@@ -412,8 +448,6 @@ class IntegratedExocortex:
             return None
 
         data = self.parse_json_safely(response)
-
-        # Check standard JSON output
         if data and data.get("is_factual_declaration") is True:
             sub = self.resolve_entity_identity(data.get("subject", ""))
             obj = self.resolve_entity_identity(data.get("object", ""))
@@ -423,7 +457,6 @@ class IntegratedExocortex:
                 "object": obj
             }
 
-        # Check regex fallback for safety
         reg_is_fact = self.extract_field_via_regex(response, "is_factual_declaration")
         if reg_is_fact and "true" in reg_is_fact.lower():
             reg_sub = self.extract_field_via_regex(response, "subject")
@@ -436,34 +469,56 @@ class IntegratedExocortex:
 
         return None
 
-    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
-        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
-        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
-        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+    def process_hdc_context(self, text: str, active_entities: Set[str]) -> List[Tuple[str, float]]:
+        """
+        Passes sentence tokens through the HDC reservoir.
+        Integrates newly resolved entities into the hyperdimensional codebook.
+        """
+        # Ensure any newly discovered entities are allocated a stable hypervector in the codebook
+        for ent in active_entities:
+            self.hdc.get_or_allocate_hypervector(ent, is_vocab_token=False)
 
-    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], str]:
+        # Segment input text into simple tokens
+        tokens = re.sub(r"[^\w\s]", "", text).lower().split()
+
+        # Step each token sequentially through the HDC permutation-binding loop
+        for token in tokens:
+            # Map word to either the entity codebook or the vocab codebook
+            resolved_id = self.resolve_entity_identity(token)
+            if resolved_id in self.hdc.codebook:
+                token_hv = self.hdc.get_or_allocate_hypervector(resolved_id, is_vocab_token=False)
+            else:
+                token_hv = self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
+
+            self.hdc.step(token_hv)
+
+        # Return the top-3 closest semantic active concepts matching our conversational fingerprint
+        return self.hdc.get_context_fingerprint(top_k=3)
+
+    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
         """Runs the gated, self-learning exocortex routing pipeline."""
-        # Update CPU Reservoir Compression
-        embeddings = self._get_sentence_representation(query)
-        for vec in embeddings:
-            res_state = self.reservoir.step(vec)
-
         # Check if the input is a question using the pre-filter
         is_query = self.is_question(query)
+
+        # Extract active entities present in the query
+        active_entities = self.link_entities(query)
+
+        # 1. Update CPU HDC Reservoir Sequence Tracking (Context Scaling)
+        # Returns the top-3 closest matching semantic entities (Wired Readout)
+        hdc_fingerprint = self.process_hdc_context(query, active_entities)
 
         resolved_value = None
         source_id, predicate = None, None
 
-        # 1. QUERY PATHWAY: Execute retrieval check if the input is classified as a question
+        # 2. QUERY PATHWAY: Execute retrieval check if the input is classified as a question
         if is_query:
-            active_entities = self.link_entities(query)
             if active_entities:
                 path = self.translate_query_to_path(query, active_entities)
                 if path:
                     source_id, predicate = path
                     resolved_value = self.kg.query_relation(source_id, predicate)
 
-        # 2. GATED RENDERER LOOP: Only invoke LLM generation if verified database facts exist [1]
+        # 3. GATED RENDERER LOOP: Only invoke LLM generation if verified database facts exist [1]
         if resolved_value:
             # Retrieve Hebbian Priming Context
             primed_info = self.plasticity.get_associated_priming_context(source_id)
@@ -475,20 +530,24 @@ class IntegratedExocortex:
             facts_str = f"[{source_id.replace('_', ' ')} {predicate} {resolved_value.replace('_', ' ')}]"
             priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
 
+            # Inject top HDC active traces directly into system prompt
+            fingerprint_str = ", ".join([f"{node} (match {sim:.2f})" for node, sim in hdc_fingerprint]) if hdc_fingerprint else "None"
+
             system_prompt = (
                 "You are a language renderer. You know nothing about the conversation except what is provided here.\n"
                 f"Verified Facts: {facts_str}\n"
                 f"Context Priming: {priming_str}\n"
+                f"HDC Conversational Fingerprint: {fingerprint_str}\n"
                 "Task: Render a single response answering the user's question using ONLY the provided facts."
             )
 
             llm_response = self.query_ollama(query, system_prompt)
             if llm_response:
-                return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, "RENDER_SUCCESS"
+                return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
             else:
-                return f"Exocortex (Simulated) > {source_id.replace('_', ' ')} was resolved to {resolved_value.replace('_', ' ')}.", primed_info, "RENDER_FALLBACK"
+                return f"Exocortex (Simulated) > {source_id.replace('_', ' ')} was resolved to {resolved_value.replace('_', ' ')}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
-        # 3. EXTRACTION PATHWAY: If input is not a question, run the autonomous learning gate
+        # 4. EXTRACTION PATHWAY: If input is not a question, run the autonomous learning gate
         if not is_query:
             extracted_fact = self.extract_factual_declaration(query)
             if extracted_fact:
@@ -500,10 +559,14 @@ class IntegratedExocortex:
                 self.kg.update_relation(sub, pred, obj)
                 self.plasticity.update_associations({sub, obj})
 
-                return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{pred}]-> [{obj.replace('_', ' ')}].", [], "EXTRACT_SUCCESS"
+                # Update ESN/HDC codebook to allocate hypervector for the newly taught entities
+                self.hdc.get_or_allocate_hypervector(sub)
+                self.hdc.get_or_allocate_hypervector(obj)
 
-        # 4. Deterministic Gated Fallback (Hallucination Blocked)
-        return "Exocortex > I do not have verified information about that.", [], "DETERMINISTIC_GATED_FALLBACK"
+                return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
+
+        # 5. Deterministic Gated Fallback (Hallucination Blocked)
+        return "Exocortex > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
 
 # ==========================================
@@ -513,22 +576,21 @@ class IntegratedExocortex:
 if __name__ == "__main__":
     db_file = "exocortex_kg.db"
 
-    # Deterministic DB Reset: Force-clears legacy fragmented files from prior failed configurations
-    if os.path.exists(db_file):
-        try:
-            os.remove(db_file)
-            logger.info("Cleared outdated database file for a clean, unfragmented run.")
-        except PermissionError:
-            pass
-
+    # Fixed (Bug 1): Database persistence enabled across sessions.
+    # We no longer delete the exocortex_kg.db file on restart.
+    is_new = not os.path.exists(db_file)
     exocortex = IntegratedExocortex(db_file)
+    if is_new:
+         logger.info("Initializing persistent Exocortex Database.")
+    else:
+         logger.info("Persistent Exocortex Database loaded successfully.")
 
     print("\n========================================================")
     print("      EXOCORTEX NEURO-SYMBOLIC CHATBOT INITIALIZED      ")
     print("========================================================")
     print("Ask me factual questions! (e.g. 'Where was Marie Curie born?')")
     print("To teach me new things, just speak factually to me!")
-    print("  example: 'Einstein was born in Germany' or 'Newton discovered Gravity'")
+    print("  example: 'Einstein was born in Germany' or 'Paris is the capital of France'")
     print("Type 'exit' or 'quit' to shut down.\n")
 
     while True:
@@ -541,7 +603,7 @@ if __name__ == "__main__":
                 break
 
             # Execute chat turn (Safe Gated Architecture)
-            reply, primed, mode = exocortex.execute_chat_turn(user_input)
+            reply, primed, fingerprint, mode = exocortex.execute_chat_turn(user_input)
 
             # Print response
             print(reply)
@@ -551,6 +613,12 @@ if __name__ == "__main__":
                 print("  [Memory Priming Node Activations]:")
                 for node, weight in primed[:3]:
                     print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
+
+            # Display HDC active traces (Conversational Context Fingerprint)
+            if fingerprint and mode == "RENDER_SUCCESS":
+                print("  [HDC Conversational Fingerprint Traces]:")
+                for node, sim in fingerprint[:3]:
+                    print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
             print()
 
         except KeyboardInterrupt:
