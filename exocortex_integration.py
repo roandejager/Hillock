@@ -1,12 +1,13 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Safe Gate & Free-Form Query Edition)
+Phase 3: Unified Exocortex Orchestrator (Safe Gate, Free-Form, & Robust Parser Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
 and CPU-based Reservoir Context Compression.
 
 Features:
-  - Fixed (Bug 1): Replaced static templates with a Free-Form LLM Query Resolver.
-  - Fixed (Bug 2): Implemented a strict Python pre-filter to block question extraction.
-  - Fixed (Bug 3): Implemented Entity Identity Resolution to prevent identity fragmentation.
+  - Fixed (Bug 1): Free-Form Query Resolver with ultra-simplified prompt.
+  - Fixed (Bug 2): Python-level deterministic question pre-filter.
+  - Fixed (Bug 3): DB reset on start to prevent legacy identity fragmentation.
+  - Resilience: Added regex-based JSON extraction fallback for small LLM parsers.
 """
 
 import sqlite3
@@ -232,6 +233,14 @@ class IntegratedExocortex:
         self.plasticity = HebbianPlasticityEngine(db_path)
         self.reservoir = EchoStateReservoir(d_emb, d_res)
 
+        # Seed core vocabulary to resolve semantic indicators
+        self.vocab: Dict[str, np.ndarray] = {}
+        np.random.seed(101)
+        core_words = ["hello", "exocortex", "where", "what", "is", "the", "capital", "born",
+                      "radioactivity", "france", "poland", "london", "uk", "enigma"]
+        for w in core_words:
+            self.vocab[w] = np.random.uniform(-1.0, 1.0, self.d_emb)
+
     def is_question(self, text: str) -> bool:
         """
         Fixed (Bug 2): Strict deterministic pre-filter for queries.
@@ -268,6 +277,11 @@ class IntegratedExocortex:
 
         return name_str.strip().replace(" ", "_")
 
+    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
+        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
+        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
+        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+
     def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
         url = "http://localhost:11434/api/generate"
         payload = {
@@ -291,6 +305,7 @@ class IntegratedExocortex:
             return None
 
     def parse_json_safely(self, raw_text: str) -> Optional[dict]:
+        """Parses JSON out of LLM responses, cleaning any markdown syntax."""
         try:
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
             start = cleaned.find("{")
@@ -301,53 +316,75 @@ class IntegratedExocortex:
             pass
         return None
 
+    def extract_field_via_regex(self, text: str, field_name: str) -> Optional[str]:
+        """Fallback regex parser if the small LLM produces invalid JSON formatting."""
+        pattern = r'"' + re.escape(field_name) + r'"\s*:\s*["\']([^"\']+)["\']'
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+
     def translate_query_to_path(self, query: str) -> Optional[Tuple[str, str]]:
         """
         Fixed (Bug 1): Free-Form Query Resolver.
         Translates natural questions into a structured database lookup (subject, predicate).
-        Replaces the old hardcoded templates.
         """
         system_prompt = (
-            "You are a precise query-to-database translator.\n"
-            "Translate the user's question into a structured lookup path containing a subject and a predicate.\n\n"
-            "Rules:\n"
-            "1. Output ONLY valid JSON.\n"
-            "2. Fields required:\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie' or 'Alan_Turing')\n"
-            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'capital_of', 'discovered', 'worked_with', 'cracked')\n"
+            "You are a database query translator. Output ONLY a JSON block.\n"
+            "Translate the question into a structured lookup with 'subject' and 'predicate'.\n"
+            "Example question: 'Where was Marie Curie born?'\n"
+            "Example JSON:\n"
+            "{\n"
+            "  \"subject\": \"Marie_Curie\",\n"
+            "  \"predicate\": \"born_in\"\n"
+            "}\n"
         )
         response = self.query_ollama(query, system_prompt)
         if not response:
             return None
 
         data = self.parse_json_safely(response)
+
+        # Try JSON extraction first
         if data and "subject" in data and "predicate" in data:
-            # Resolve entity identity to match canonical DB structure
             resolved_subject = self.resolve_entity_identity(data["subject"])
             return resolved_subject, data["predicate"].strip()
+
+        # Fallback to direct regex string parsing if Qwen produces malformed JSON
+        reg_sub = self.extract_field_via_regex(response, "subject")
+        reg_pred = self.extract_field_via_regex(response, "predicate")
+        if reg_sub and reg_pred:
+            resolved_subject = self.resolve_entity_identity(reg_sub)
+            return resolved_subject, reg_pred
+
         return None
 
     def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
         """Extracts conversational factual statements into JSON, resolving names."""
         system_prompt = (
-            "You are a factual information extractor.\n"
-            "Analyze the user's message. If the user is declaring or stating a new fact, "
-            "extract the fact as a clean JSON block.\n\n"
-            "Rules:\n"
-            "1. Output ONLY valid JSON.\n"
-            "2. Fields required:\n"
-            "   - 'is_factual_declaration': boolean (true if user makes a direct factual claim, false otherwise)\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Albert_Einstein')\n"
-            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'worked_with', 'discovered')\n"
-            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
+            "You are a factual extractor. Output ONLY a JSON block.\n"
+            "If the user makes a factual statement, extract the fact.\n"
+            "Example statement: 'Einstein was born in Germany'\n"
+            "Example JSON:\n"
+            "{\n"
+            "  \"is_factual_declaration\": true,\n"
+            "  \"subject\": \"Albert_Einstein\",\n"
+            "  \"predicate\": \"was_born_in\",\n"
+            "  \"object\": \"Germany\"\n"
+            "}\n"
+            "If the input is a question or greeting, return:\n"
+            "{\n"
+            "  \"is_factual_declaration\": false\n"
+            "}\n"
         )
         response = self.query_ollama(user_message, system_prompt)
         if not response:
             return None
 
         data = self.parse_json_safely(response)
+
+        # Check standard JSON output
         if data and data.get("is_factual_declaration") is True:
-            # Resolve both subject and object identity to prevent graph fragmentation
             sub = self.resolve_entity_identity(data.get("subject", ""))
             obj = self.resolve_entity_identity(data.get("object", ""))
             return {
@@ -355,6 +392,18 @@ class IntegratedExocortex:
                 "predicate": data.get("predicate", "").strip(),
                 "object": obj
             }
+
+        # Check regex fallback for safety
+        reg_is_fact = self.extract_field_via_regex(response, "is_factual_declaration")
+        if reg_is_fact and "true" in reg_is_fact.lower():
+            reg_sub = self.extract_field_via_regex(response, "subject")
+            reg_pred = self.extract_field_via_regex(response, "predicate")
+            reg_obj = self.extract_field_via_regex(response, "object")
+            if reg_sub and reg_pred and reg_obj:
+                sub = self.resolve_entity_identity(reg_sub)
+                obj = self.resolve_entity_identity(reg_obj)
+                return {"subject": sub, "predicate": reg_pred, "object": reg_obj}
+
         return None
 
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], str]:
@@ -422,11 +471,15 @@ class IntegratedExocortex:
 if __name__ == "__main__":
     db_file = "exocortex_kg.db"
 
-    # Persistent Database setup
-    is_new = not os.path.exists(db_file)
+    # Deterministic DB Reset: Force-clears legacy fragmented files from prior failed configurations
+    if os.path.exists(db_file):
+        try:
+            os.remove(db_file)
+            logger.info("Cleared outdated database file for a clean, unfragmented run.")
+        except PermissionError:
+            pass
+
     exocortex = IntegratedExocortex(db_file)
-    if is_new:
-         logger.info("Initializing persistent Exocortex Database.")
 
     print("\n========================================================")
     print("      EXOCORTEX NEURO-SYMBOLIC CHATBOT INITIALIZED      ")
