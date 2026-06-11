@@ -1,13 +1,12 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Safe Gate, Free-Form, & Robust Parser Edition)
+Phase 3: Unified Exocortex Orchestrator (Closed-Loop Gated Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
 and CPU-based Reservoir Context Compression.
 
-Features:
-  - Fixed (Bug 1): Free-Form Query Resolver with ultra-simplified prompt.
-  - Fixed (Bug 2): Python-level deterministic question pre-filter.
-  - Fixed (Bug 3): DB reset on start to prevent legacy identity fragmentation.
-  - Resilience: Added regex-based JSON extraction fallback for small LLM parsers.
+Closed-Loop Architecture:
+  - Fixed (Bug 1): Free-Form Query Resolver with Dynamic Schema Priming.
+  - Fixed (Bug 2): Rigid Python pre-filter enforcing a strict question gate.
+  - Fixed (Bug 3): Token-based Entity Linking and Identity Resolution.
 """
 
 import sqlite3
@@ -99,6 +98,9 @@ class SQLiteKnowledgeGraph:
     def update_relation(self, source_id: str, predicate: str, new_target_id: str,
                         source_type: str = "Generic", target_type: str = "Generic") -> None:
         """Updates relations, registering entities first to satisfy foreign key rules."""
+        src_key = source_id.strip().replace(" ", "_")
+        tgt_key = new_target_id.strip().replace(" ", "_")
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
@@ -106,24 +108,45 @@ class SQLiteKnowledgeGraph:
             # Register missing entities first
             cursor.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (source_id, source_id.replace("_", " "), source_type)
+                (src_key, src_key.replace("_", " "), source_type)
             )
             cursor.execute(
                 "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
-                (new_target_id, new_target_id.replace("_", " "), target_type)
+                (tgt_key, tgt_key.replace("_", " "), target_type)
             )
 
             # Update relation
-            cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (source_id, predicate))
-            cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (source_id, predicate, new_target_id))
+            cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+            cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
             conn.commit()
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
+        """Performs a fuzzy, stem-invariant predicate search in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+
+            # 1. Exact match check
             cursor.execute("SELECT target_id FROM relations WHERE source_id = ? AND predicate = ?", (source_id, predicate))
             result = cursor.fetchone()
-            return result[0] if result else None
+            if result:
+                return result[0]
+
+            # 2. Fuzzy, tense-invariant stemming check (e.g. 'work_with' matches 'worked_with')
+            cursor.execute("SELECT predicate, target_id FROM relations WHERE source_id = ?", (source_id,))
+            all_relations = cursor.fetchall()
+
+            def stem(s: str) -> str:
+                # Strip typical verb suffix inflections for matching
+                s = s.lower().replace("_", "").replace(" ", "")
+                return re.sub(r"ed$|ing$|s$", "", s)
+
+            stemmed_query = stem(predicate)
+            for db_pred, tgt_id in all_relations:
+                if stemmed_query in stem(db_pred) or stem(db_pred) in stemmed_query:
+                    logger.info(f"Fuzzy Predicate Match: Resolved '{predicate}' to database relation '{db_pred}'")
+                    return tgt_id
+
+            return None
 
     def get_all_entity_ids(self) -> List[str]:
         with sqlite3.connect(self.db_path) as conn:
@@ -199,7 +222,7 @@ class HebbianPlasticityEngine:
 # ==========================================
 
 class EchoStateReservoir:
-    """CPU-bound Context Compressor (Maintains history state mathematically) [48]."""
+    """CPU-bound Context Compressor [48]."""
     def __init__(self, d_emb: int, d_res: int, leak_rate: float = 0.3):
         self.d_emb = d_emb
         self.d_res = d_res
@@ -233,7 +256,6 @@ class IntegratedExocortex:
         self.plasticity = HebbianPlasticityEngine(db_path)
         self.reservoir = EchoStateReservoir(d_emb, d_res)
 
-        # Seed core vocabulary to resolve semantic indicators
         self.vocab: Dict[str, np.ndarray] = {}
         np.random.seed(101)
         core_words = ["hello", "exocortex", "where", "what", "is", "the", "capital", "born",
@@ -242,10 +264,7 @@ class IntegratedExocortex:
             self.vocab[w] = np.random.uniform(-1.0, 1.0, self.d_emb)
 
     def is_question(self, text: str) -> bool:
-        """
-        Fixed (Bug 2): Strict deterministic pre-filter for queries.
-        Intercepts question structures before they reach the Extractor.
-        """
+        """Fixed (Bug 2): Stricter Python pre-filter checking for syntactic question starters."""
         cleaned = text.strip().lower()
         if cleaned.endswith("?"):
             return True
@@ -256,31 +275,33 @@ class IntegratedExocortex:
         return False
 
     def resolve_entity_identity(self, name_str: str) -> str:
-        """
-        Fixed (Bug 3): Resolves entity fragmentation.
-        Maps names (e.g., 'Turing' or 'Albert Einstein') to pre-existing canonical database keys.
-        """
+        """Fixed (Bug 3): Substring identity checks resolve names to pre-existing canonical IDs."""
         normalized_new = name_str.strip().replace(" ", "_").lower()
         all_ids = self.kg.get_all_entity_ids()
 
-        # Exact match check
         for ent_id in all_ids:
             if ent_id.lower() == normalized_new:
                 return ent_id
 
-        # Substring overlap check (e.g. 'Turing' matches 'Alan_Turing')
         for ent_id in all_ids:
             lower_ent = ent_id.lower()
             if normalized_new in lower_ent or lower_ent in normalized_new:
-                # Resolve to the longer canonical name
                 return ent_id if len(ent_id) >= len(normalized_new) else name_str.strip().replace(" ", "_")
 
         return name_str.strip().replace(" ", "_")
 
-    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
-        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
-        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
-        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+    def link_entities(self, query: str) -> Set[str]:
+        """Fixed (Bug 3): Token-based entity linker resolves names by matching individual word subparts."""
+        detected = set()
+        query_words = set(re.sub(r"[^\w\s]", " ", query).lower().split())
+
+        for entity_id in self.kg.get_all_entity_ids():
+            ent_parts = entity_id.lower().split("_")
+            for part in ent_parts:
+                if len(part) > 2 and part in query_words:
+                    detected.add(entity_id)
+                    break
+        return detected
 
     def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
         url = "http://localhost:11434/api/generate"
@@ -305,7 +326,6 @@ class IntegratedExocortex:
             return None
 
     def parse_json_safely(self, raw_text: str) -> Optional[dict]:
-        """Parses JSON out of LLM responses, cleaning any markdown syntax."""
         try:
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
             start = cleaned.find("{")
@@ -317,22 +337,32 @@ class IntegratedExocortex:
         return None
 
     def extract_field_via_regex(self, text: str, field_name: str) -> Optional[str]:
-        """Fallback regex parser if the small LLM produces invalid JSON formatting."""
         pattern = r'"' + re.escape(field_name) + r'"\s*:\s*["\']([^"\']+)["\']'
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return match.group(1).strip()
         return None
 
-    def translate_query_to_path(self, query: str) -> Optional[Tuple[str, str]]:
+    def translate_query_to_path(self, query: str, active_entities: Set[str]) -> Optional[Tuple[str, str]]:
         """
-        Fixed (Bug 1): Free-Form Query Resolver.
-        Translates natural questions into a structured database lookup (subject, predicate).
+        Fixed (Bug 1): Free-Form Query Resolver with Dynamic Schema Priming.
+        Injects the database's existing predicates for the active entity to guide LLM translation.
         """
+        known_predicates = set()
+        with sqlite3.connect(self.kg.db_path) as conn:
+            cursor = conn.cursor()
+            for ent in active_entities:
+                cursor.execute("SELECT predicate FROM relations WHERE source_id = ?", (ent,))
+                for row in cursor.fetchall():
+                    known_predicates.add(row[0])
+
+        predicates_str = ", ".join([f"'{p}'" for p in known_predicates]) if known_predicates else "None"
+
         system_prompt = (
             "You are a database query translator. Output ONLY a JSON block.\n"
             "Translate the question into a structured lookup with 'subject' and 'predicate'.\n"
-            "Example question: 'Where was Marie Curie born?'\n"
+            f"Active DB Predicates for these entities: [{predicates_str}]\n"
+            "If possible, select a predicate from the Active DB Predicates list.\n"
             "Example JSON:\n"
             "{\n"
             "  \"subject\": \"Marie_Curie\",\n"
@@ -345,7 +375,7 @@ class IntegratedExocortex:
 
         data = self.parse_json_safely(response)
 
-        # Try JSON extraction first
+        # Try JSON extraction
         if data and "subject" in data and "predicate" in data:
             resolved_subject = self.resolve_entity_identity(data["subject"])
             return resolved_subject, data["predicate"].strip()
@@ -406,8 +436,18 @@ class IntegratedExocortex:
 
         return None
 
+    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
+        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
+        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
+        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], str]:
         """Runs the gated, self-learning exocortex routing pipeline."""
+        # Update CPU Reservoir Compression
+        embeddings = self._get_sentence_representation(query)
+        for vec in embeddings:
+            res_state = self.reservoir.step(vec)
+
         # Check if the input is a question using the pre-filter
         is_query = self.is_question(query)
 
@@ -416,10 +456,12 @@ class IntegratedExocortex:
 
         # 1. QUERY PATHWAY: Execute retrieval check if the input is classified as a question
         if is_query:
-            path = self.translate_query_to_path(query)
-            if path:
-                source_id, predicate = path
-                resolved_value = self.kg.query_relation(source_id, predicate)
+            active_entities = self.link_entities(query)
+            if active_entities:
+                path = self.translate_query_to_path(query, active_entities)
+                if path:
+                    source_id, predicate = path
+                    resolved_value = self.kg.query_relation(source_id, predicate)
 
         # 2. GATED RENDERER LOOP: Only invoke LLM generation if verified database facts exist [1]
         if resolved_value:
