@@ -1,5 +1,5 @@
 """
-Exocortex Scientific Evaluation Harness
+Exocortex Scientific Evaluation Harness (Fixed Imports)
 Performs automated database seeding, sequential query testing,
 and outputs performance metrics: Precision, Recall, Retrieval Accuracy, and Gate Accuracy.
 """
@@ -7,11 +7,11 @@ and outputs performance metrics: Precision, Recall, Retrieval Accuracy, and Gate
 import os
 import json
 import logging
+import sqlite3 # Fixed: Restored missing sqlite3 database import
 from exocortex_integration import IntegratedExocortex
 
 # Set up logging to file instead of stdout to keep output clean
 logging.basicConfig(level=logging.ERROR)
-
 
 def generate_test_assets():
     """Auto-generates test files if they don't exist to ensure out-of-the-box execution."""
@@ -27,18 +27,12 @@ def generate_test_assets():
 
     questions = [
         # Answerable questions (True Positives / True Negatives)
-        {"question": "Where was Marie Curie born?", "expected_subject": "Marie_Curie", "expected_predicate": "born_in",
-         "expected_object": "Poland", "answerable": True},
-        {"question": "Where was Alan Turing born?", "expected_subject": "Alan_Turing", "expected_predicate": "born_in",
-         "expected_object": "London", "answerable": True},
-        {"question": "Where was Albert Einstein born?", "expected_subject": "Albert_Einstein",
-         "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
-        {"question": "Who did Turing work with?", "expected_subject": "Alan_Turing",
-         "expected_predicate": "collaborated_with", "expected_object": "Albert_Einstein", "answerable": True},
-        {"question": "What did Alan Turing crack?", "expected_subject": "Alan_Turing", "expected_predicate": "cracked",
-         "expected_object": "Enigma", "answerable": True},
-        {"question": "What did Marie Curie discover?", "expected_subject": "Marie_Curie",
-         "expected_predicate": "discovered", "expected_object": "Radioactivity", "answerable": True},
+        {"question": "Where was Marie Curie born?", "expected_subject": "Marie_Curie", "expected_predicate": "born_in", "expected_object": "Poland", "answerable": True},
+        {"question": "Where was Alan Turing born?", "expected_subject": "Alan_Turing", "expected_predicate": "born_in", "expected_object": "London", "answerable": True},
+        {"question": "Where was Albert Einstein born?", "expected_subject": "Albert_Einstein", "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
+        {"question": "Who did Turing work with?", "expected_subject": "Alan_Turing", "expected_predicate": "collaborated_with", "expected_object": "Albert_Einstein", "answerable": True},
+        {"question": "What did Alan Turing crack?", "expected_subject": "Alan_Turing", "expected_predicate": "cracked", "expected_object": "Enigma", "answerable": True},
+        {"question": "What did Marie Curie discover?", "expected_subject": "Marie_Curie", "expected_predicate": "discovered", "expected_object": "Radioactivity", "answerable": True},
 
         # Unanswerable questions (To test safe gating)
         {"question": "Who is Turing?", "answerable": False},
@@ -54,7 +48,6 @@ def generate_test_assets():
     if not os.path.exists("eval_questions.json"):
         with open("eval_questions.json", "w", encoding="utf-8") as f:
             json.dump(questions, f, indent=2)
-
 
 def run_evaluation():
     db_file = "exocortex_eval.db"
@@ -129,13 +122,11 @@ def run_evaluation():
         if is_answerable:
             if mode in ["RENDER_SUCCESS", "RENDER_FALLBACK"]:
                 # Gate correctly opened. Now check if the resolved fact is correct.
-                # Find matching fact in SQL to verify
                 active_ents = exocortex.link_entities(q)
                 candidate_facts = exocortex.kg.get_all_facts_for_entities(active_ents)
                 matched = exocortex.select_answering_fact(q, candidate_facts)
 
-                if matched and matched[0] == q_data["expected_subject"] and matched[1] == q_data[
-                    "expected_predicate"] and matched[2] == q_data["expected_object"]:
+                if matched and matched[0] == q_data["expected_subject"] and matched[1] == q_data["expected_predicate"] and matched[2] == q_data["expected_object"]:
                     status = "CORRECT"
                     correct_answers += 1
                 else:
@@ -159,15 +150,14 @@ def run_evaluation():
 
     # 5. CALCULATE STATISTICAL SCORES
     retrieval_acc = correct_answers / len([q for q in questions if q["answerable"]])
-    total_unanswerable = len([q for q in questions if not q["answerable"]])
     gate_acc = (correct_blocks + correct_answers) / len(questions)
 
     print("\n[Step 3/3]: Generating Research Performance Metrics:")
     print("--------------------------------------------------")
-    print(f"  * Extraction Precision : {precision * 100:.1f}%  (Correctly structured factual nodes)")
-    print(f"  * Extraction Recall    : {recall * 100:.1f}%  (Completeness of indexed relations)")
-    print(f"  * Retrieval Accuracy   : {retrieval_acc * 100:.1f}%  (Factual accuracy on answerable queries)")
-    print(f"  * Gate Accuracy        : {gate_acc * 100:.1f}%  (Hallucination defense rate)")
+    print(f"  * Extraction Precision : {precision*100:.1f}%  (Correctly structured factual nodes)")
+    print(f"  * Extraction Recall    : {recall*100:.1f}%  (Completeness of indexed relations)")
+    print(f"  * Retrieval Accuracy   : {retrieval_acc*100:.1f}%  (Factual accuracy on answerable queries)")
+    print(f"  * Gate Accuracy        : {gate_acc*100:.1f}%  (Hallucination defense rate)")
     print("--------------------------------------------------")
 
     # Clean up evaluation DB file cleanly
@@ -176,7 +166,6 @@ def run_evaluation():
             os.remove(db_file)
         except PermissionError:
             pass
-
 
 if __name__ == "__main__":
     generate_test_assets()
