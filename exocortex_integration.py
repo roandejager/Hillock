@@ -1,5 +1,5 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Fully Hardened Edition)
+Phase 3: Unified Exocortex Orchestrator (Fully Hardened & Leaky HDC Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
 and CPU-bound Leaky Hyperdimensional Computing (HDC) Reservoirs.
 
@@ -7,7 +7,7 @@ Upgrades:
   - Solved (Problem 3): Platform-independent SQL-level reset with persistent logging.
   - Solved (Problem 1): Two-Pass Ingestion pipeline with validation checks.
   - Solved (Problem 2): Bipolar-to-Float HDC reservoir transition with 0.95 leaky bundling
-    decay to prevent stale history saturation. Codebooks remain strictly static.
+    decay to prevent stale history saturation. Codebooks remain strictly static [28, 48].
   - Calibration: Raised HDC gate threshold to 0.40 to block close general query misses.
 """
 
@@ -425,8 +425,8 @@ class IntegratedExocortex:
 
     def select_answering_fact(self, query: str, facts: List[Tuple[str, str, str]]) -> Optional[Tuple[str, str, str]]:
         """
-        Fixed (Problem 1): Deterministic HDC Cosine Similarity Selector [28].
-        Calibration (Problem 2): Raised target gating threshold to 0.40 to prevent general query leaks.
+        Fixed (Bug 1): Deterministic HDC Cosine Similarity Selector [28].
+        Calibration: Raised target gating threshold to 0.40 to prevent general query leaks.
         """
         if not facts:
             return None
