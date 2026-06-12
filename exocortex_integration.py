@@ -1,12 +1,14 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Persistent Brain Edition)
+Phase 3: Unified Exocortex Orchestrator (Fully Hardened Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
-and CPU-bound Hyperdimensional Computing (HDC) Reservoirs.
+and CPU-bound Leaky Hyperdimensional Computing (HDC) Reservoirs.
 
 Upgrades:
-  - Solved (Problem 3): Completely removed automatic database deletion on startup.
-  - Addition: Database now queries and logs entity count on persistent resume.
-  - Addition: Added explicit '/reset' terminal command to clear and re-seed the DB.
+  - Solved (Problem 3): Platform-independent SQL-level reset with persistent logging.
+  - Solved (Problem 1): Two-Pass Ingestion pipeline with validation checks.
+  - Solved (Problem 2): Bipolar-to-Float HDC reservoir transition with 0.95 leaky bundling
+    decay to prevent stale history saturation. Codebooks remain strictly static.
+  - Calibration: Raised HDC gate threshold to 0.40 to block close general query misses.
 """
 
 import sqlite3
@@ -95,8 +97,21 @@ class SQLiteKnowledgeGraph:
             cursor.executemany("INSERT OR IGNORE INTO relations VALUES (?, ?, ?)", relations)
             conn.commit()
 
+    def clear_and_reinitialize(self) -> None:
+        """Fixed (Problem 3): Safe SQL-level reset."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = OFF;")
+            cursor.execute("DROP TABLE IF EXISTS hebbian_weights;")
+            cursor.execute("DROP TABLE IF EXISTS relations;")
+            cursor.execute("DROP TABLE IF EXISTS entities;")
+            conn.commit()
+
+        self._initialize_db()
+        self.seed_initial_knowledge()
+
     def get_entity_count(self) -> int:
-        """Fixed (Problem 3): Queries the exact number of unique entities registered in SQL [1]."""
+        """Fixed (Problem 3): Queries exact unique entity count in SQL [1]."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM entities")
@@ -153,6 +168,19 @@ class SQLiteKnowledgeGraph:
                     return tgt_id
 
             return None
+
+    def get_all_facts_for_entities(self, active_entities: Set[str]) -> List[Tuple[str, str, str]]:
+        """Retrieves all registered facts involving active entities as subject or object."""
+        if not active_entities:
+            return []
+        placeholders = ", ".join(["?"] * len(active_entities))
+        query = f"SELECT source_id, predicate, target_id FROM relations WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})"
+        params = list(active_entities) + list(active_entities)
+
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchall()
 
     def get_all_entity_ids(self) -> List[str]:
         with sqlite3.connect(self.db_path) as conn:
@@ -228,27 +256,50 @@ class HebbianPlasticityEngine:
 # ==========================================
 
 class HyperdimensionalReservoir:
-    """CPU-bound Context Compressor using Vector Symbolic Architectures (VSA) [1, 28]."""
+    """
+    Solved (Problem 2): Bipolar-to-Float Context Compressor [1, 28].
+    Replaces unbounded accumulation with 0.95 leaky bundling decay.
+    Entity codebook remains strictly static; only self.state receives the decay [28, 48].
+    """
     def __init__(self, d: int = 10000):
         self.d = d
-        self.state = np.zeros(self.d, dtype=np.int32)
+        # Continuous float accumulator instead of unbounded integer accumulator
+        self.state = np.zeros(self.d, dtype=np.float64)
+
+        # Static, unmutated entity and vocabulary codebooks
         self.codebook: Dict[str, np.ndarray] = {}
         self.vocab_book: Dict[str, np.ndarray] = {}
 
     def get_or_allocate_hypervector(self, name_id: str, is_vocab_token: bool = False) -> np.ndarray:
+        """Retrieves or allocates a unique, static random bipolar vector [28]."""
         book = self.vocab_book if is_vocab_token else self.codebook
         if name_id not in book:
             vector = np.random.choice([-1, 1], size=self.d).astype(np.int32)
             book[name_id] = vector
         return book[name_id]
 
-    def step(self, token_hv: np.ndarray) -> np.ndarray:
+    def step(self, token_hv: np.ndarray, decay: float = 0.95) -> np.ndarray:
+        """
+        Updates the context hypervector by:
+        1. Permutation: rolling/shifting the state vector on CPU.
+        2. Binding: multiplying element-wise by the new token.
+        3. Leaky Bundling: decay the permuted context and add the bound token [28].
+        """
+        # 1. Permutation
         permuted_state = np.roll(self.state, shift=1)
+
+        # 2. Binding
         bound = permuted_state * token_hv
-        self.state = self.state + bound
+
+        # 3. Leaky Bundling (Problem 2: Leaky accumulation reduces historical noise)
+        self.state = (decay * permuted_state) + bound
         return self.state
 
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
+        """
+        Wired Readout: Computes cosine similarity between the running, decayed
+        float context state and the static, unmutated entity codebook [28, 48].
+        """
         scores = []
         ctx_norm = np.linalg.norm(self.state)
         if ctx_norm == 0:
@@ -374,9 +425,8 @@ class IntegratedExocortex:
 
     def select_answering_fact(self, query: str, facts: List[Tuple[str, str, str]]) -> Optional[Tuple[str, str, str]]:
         """
-        Fixed (Bug 1): Deterministic HDC Cosine Similarity Selector.
-        Avoids LLM translation to avoid positional biases.
-        Compares query token hypervectors against fact hypervectors mathematically [28].
+        Fixed (Problem 1): Deterministic HDC Cosine Similarity Selector [28].
+        Calibration (Problem 2): Raised target gating threshold to 0.40 to prevent general query leaks.
         """
         if not facts:
             return None
@@ -431,13 +481,12 @@ class IntegratedExocortex:
                 best_score = similarity
                 best_fact = (s, p, o)
 
-        # 3. Enforce a strict gating threshold (0.35)
-        # Prevents general queries (e.g. 'Who is Turing?') from opening the gate
-        if best_score >= 0.35:
+        # 3. Enforce calibrated threshold (0.40) to filter out general queries
+        if best_score >= 0.40:
             logger.info(f"HDC Router: Selected Fact [{best_fact[0]} {best_fact[1]} {best_fact[2]}] with confidence {best_score:.4f}")
             return best_fact
 
-        logger.warning(f"HDC Router: Gated query. Closest fact confidence {best_score:.4f} fell below threshold (0.35)")
+        logger.warning(f"HDC Router: Gated query. Closest fact confidence {best_score:.4f} fell below threshold (0.40)")
         return None
 
     def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
@@ -487,6 +536,93 @@ class IntegratedExocortex:
 
         return None
 
+    def extract_factual_declaration_two_pass(self, sentence: str) -> Optional[Dict[str, str]]:
+        """
+        Solved (Problem 1): Two-Pass Relation Ingestor [1, 23].
+        1. Entity Anchoring Pass: Identifies related subjects.
+        2. Constrained Predicate Pass: Extracts verb while avoiding object bleeding.
+        """
+        # Pass 1: Entity Anchoring (Determine Subject and Object first)
+        system_1 = (
+            "You are an entity extractor. Output ONLY a JSON block.\n"
+            "Identify and extract the two primary entities being related in the sentence.\n"
+            "Normalize them using snake_case (e.g., 'Marie_Curie').\n"
+            "Example JSON:\n"
+            "{\n"
+            "  \"entity_a\": \"Marie_Curie\",\n"
+            "  \"entity_b\": \"Radioactivity\"\n"
+            "}\n"
+        )
+        response_1 = self.query_ollama(sentence, system_1)
+        logger.info(f"DEBUG: Two-Pass - Pass 1 Raw Output:\n{response_1}")
+        if not response_1:
+            return None
+
+        data_1 = self.parse_json_safely(response_1)
+        ent_a, ent_b = None, None
+        if data_1 and "entity_a" in data_1 and "entity_b" in data_1:
+            ent_a = data_1["entity_a"]
+            ent_b = data_1["entity_b"]
+        else:
+            ent_a = self.extract_field_via_regex(response_1, "entity_a")
+            ent_b = self.extract_field_via_regex(response_1, "entity_b")
+
+        if not ent_a or not ent_b:
+            return None
+
+        # Resolve entity identities against database schema to prevent fragmentation
+        resolved_a = self.resolve_entity_identity(ent_a)
+        resolved_b = self.resolve_entity_identity(ent_b)
+
+        # Pass 2: Predicate Extraction under Anchored Constraints
+        system_2 = (
+            "You are a predicate extractor. Output ONLY a JSON block.\n"
+            "Extract ONLY the single verb or verb phrase that connects Entity A to Entity B in the sentence.\n"
+            "Rules:\n"
+            "1. Return ONLY the relationship verb, no nouns, subjects, or objects.\n"
+            f"2. Do NOT include '{resolved_a}' or '{resolved_b}' or any words from them in the predicate.\n"
+            "Example JSON:\n"
+            "{\n"
+            "  \"predicate\": \"discovered\"\n"
+            "}\n"
+        )
+        prompt_2 = (
+            f"Sentence: '{sentence}'\n"
+            f"Entity A: '{resolved_a}'\n"
+            f"Entity B: '{resolved_b}'"
+        )
+        response_2 = self.query_ollama(prompt_2, system_2)
+        logger.info(f"DEBUG: Two-Pass - Pass 2 Raw Output:\n{response_2}")
+        if not response_2:
+            return None
+
+        data_2 = self.parse_json_safely(response_2)
+        pred = None
+        if data_2 and "predicate" in data_2:
+            pred = data_2["predicate"]
+        else:
+            pred = self.extract_field_via_regex(response_2, "predicate")
+
+        if not pred:
+            return None
+
+        # Validation checks: Strip the target if bleeding still occurred
+        clean_pred = pred.strip().lower().replace(" ", "_")
+        normalized_b = resolved_b.lower().replace("_", "")
+
+        if normalized_b in clean_pred.replace("_", ""):
+            logger.warning(f"Validation: Bleeding detected! Stripped '{resolved_b}' from predicate '{pred}'")
+            clean_pred = clean_pred.replace(normalized_b, "").strip("_")
+
+        if not clean_pred or clean_pred in ["", "_"]:
+            clean_pred = "related_to"
+
+        return {
+            "subject": resolved_a,
+            "predicate": clean_pred,
+            "object": resolved_b
+        }
+
     def process_hdc_context(self, text: str, active_entities: Set[str]) -> List[Tuple[str, float]]:
         """Passes sentence tokens through the HDC reservoir and returns context traces [28]."""
         for ent in active_entities:
@@ -520,7 +656,7 @@ class IntegratedExocortex:
             active_ents = self.link_entities(sentence)
             self.process_hdc_context(sentence, active_ents)
 
-            fact = self.extract_factual_declaration(sentence)
+            fact = self.extract_factual_declaration_two_pass(sentence)
             if fact:
                 sub = fact["subject"]
                 pred = fact["predicate"]
@@ -646,17 +782,20 @@ if __name__ == "__main__":
             # Intercept Deliberate Database Reset Command (Problem 3)
             if user_input.strip() == "/reset":
                  print("Exocortex [SYSTEM]: Initiating deliberate database reset...")
-                 if os.path.exists(db_file):
-                      try:
-                           os.remove(db_file)
-                           print("Exocortex [SYSTEM]: Database file deleted.")
-                      except PermissionError:
-                           print("Exocortex [SYSTEM]: Error. Database file is currently locked. Please close active connections and try again.")
-                           continue
 
-                 # Reinitialize the exocortex cleanly
-                 exocortex = IntegratedExocortex(db_file)
-                 print("Exocortex [SYSTEM]: Database has been cleanly reset and re-seeded.")
+                 # SQL-level drop-and-reinit completely immune to Windows file lock issues [1]
+                 exocortex.kg.clear_and_reinitialize()
+
+                 # Reset the HDC reservoir state and codebook
+                 exocortex.hdc.state = np.zeros(exocortex.hdc.d, dtype=np.float64)
+                 exocortex.hdc.codebook.clear()
+                 exocortex.hdc.vocab_book.clear()
+
+                 # Re-seed HDC codebook with newly seeded SQL entities
+                 for ent_id in exocortex.kg.get_all_entity_ids():
+                     exocortex.hdc.get_or_allocate_hypervector(ent_id)
+
+                 print("Exocortex [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
                  continue
 
             # Intercept Bulk Document Ingestion
