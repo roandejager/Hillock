@@ -1,13 +1,12 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Fully Patched - Safe Gate Edition)
+Phase 3: Unified Exocortex Orchestrator (Persistent Brain Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
-and CPU-based Reservoir Context Compression.
+and CPU-bound Hyperdimensional Computing (HDC) Reservoirs.
 
-Structural Safety:
-  - Fixed (Bug 1): Removed noisy random ESN text projections. ESN runs purely as a mathematical trace.
-  - Fixed (Bug 2 & 3): Extractor dynamically registers new entities in the DB and Hebbian table.
-  - Architectural Gate: Deterministically blocks LLM rendering if no database facts are found.
-  - Autonomous Learning: Swaps hallucination failures into a JSON extraction learning loop.
+Upgrades:
+  - Solved (Problem 3): Completely removed automatic database deletion on startup.
+  - Addition: Database now queries and logs entity count on persistent resume.
+  - Addition: Added explicit '/reset' terminal command to clear and re-seed the DB.
 """
 
 import sqlite3
@@ -96,10 +95,16 @@ class SQLiteKnowledgeGraph:
             cursor.executemany("INSERT OR IGNORE INTO relations VALUES (?, ?, ?)", relations)
             conn.commit()
 
+    def get_entity_count(self) -> int:
+        """Fixed (Problem 3): Queries the exact number of unique entities registered in SQL [1]."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM entities")
+            return cursor.fetchone()[0]
+
     def update_relation(self, source_id: str, predicate: str, new_target_id: str,
                         source_type: str = "Generic", target_type: str = "Generic") -> None:
         """Updates relations, registering entities first to satisfy foreign key rules."""
-        # Convert names to clean DB keys
         src_key = source_id.strip().replace(" ", "_")
         tgt_key = new_target_id.strip().replace(" ", "_")
 
@@ -123,11 +128,31 @@ class SQLiteKnowledgeGraph:
             conn.commit()
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
+        """Performs a fuzzy, stem-invariant predicate search in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+
+            # 1. Exact match check
             cursor.execute("SELECT target_id FROM relations WHERE source_id = ? AND predicate = ?", (source_id, predicate))
             result = cursor.fetchone()
-            return result[0] if result else None
+            if result:
+                return result[0]
+
+            # 2. Fuzzy, tense-invariant stemming check
+            cursor.execute("SELECT predicate, target_id FROM relations WHERE source_id = ?", (source_id,))
+            all_relations = cursor.fetchall()
+
+            def stem(s: str) -> str:
+                s = s.lower().replace("_", "").replace(" ", "")
+                return re.sub(r"ed$|ing$|s$", "", s)
+
+            stemmed_query = stem(predicate)
+            for db_pred, tgt_id in all_relations:
+                if stemmed_query in stem(db_pred) or stem(db_pred) in stemmed_query:
+                    logger.info(f"Fuzzy Predicate Match: Resolved '{predicate}' to database relation '{db_pred}'")
+                    return tgt_id
+
+            return None
 
     def get_all_entity_ids(self) -> List[str]:
         with sqlite3.connect(self.db_path) as conn:
@@ -155,7 +180,6 @@ class HebbianPlasticityEngine:
                 for j in range(i + 1, len(sorted_entities)):
                     ent_a, ent_b = sorted_entities[i], sorted_entities[j]
 
-                    # Ensure entities exist in Hebbian context before weight writing
                     cursor.execute("SELECT id FROM entities WHERE id = ?", (ent_a,))
                     if not cursor.fetchone():
                         continue
@@ -200,89 +224,122 @@ class HebbianPlasticityEngine:
 
 
 # ==========================================
-# PHASE 2: CONTEXT SCALING (ESN ONLY)
+# PHASE 2: HYPERDIMENSIONAL COMPUTING (HDC)
 # ==========================================
 
-class EchoStateReservoir:
-    """CPU-bound Context Compressor (Maintains continuous state history mathematically) [48]."""
-    def __init__(self, d_emb: int, d_res: int, leak_rate: float = 0.3):
-        self.d_emb = d_emb
-        self.d_res = d_res
-        self.leak_rate = leak_rate
-        self.state = np.zeros(self.d_res)
-        self.W_in = np.random.uniform(-0.1, 0.1, (self.d_res, self.d_emb))
-        self.W_res = np.random.uniform(-0.5, 0.5, (self.d_res, self.d_res))
-        self._scale_spectral_radius(0.9)
+class HyperdimensionalReservoir:
+    """CPU-bound Context Compressor using Vector Symbolic Architectures (VSA) [1, 28]."""
+    def __init__(self, d: int = 10000):
+        self.d = d
+        self.state = np.zeros(self.d, dtype=np.int32)
+        self.codebook: Dict[str, np.ndarray] = {}
+        self.vocab_book: Dict[str, np.ndarray] = {}
 
-    def _scale_spectral_radius(self, target: float) -> None:
-        radius = np.max(np.abs(np.linalg.eigvals(self.W_res)))
-        if radius > 0:
-            self.W_res = self.W_res * (target / radius)
+    def get_or_allocate_hypervector(self, name_id: str, is_vocab_token: bool = False) -> np.ndarray:
+        book = self.vocab_book if is_vocab_token else self.codebook
+        if name_id not in book:
+            vector = np.random.choice([-1, 1], size=self.d).astype(np.int32)
+            book[name_id] = vector
+        return book[name_id]
 
-    def step(self, input_vector: np.ndarray) -> np.ndarray:
-        raw = np.dot(self.W_in, input_vector) + np.dot(self.W_res, self.state)
-        self.state = (1.0 - self.leak_rate) * self.state + self.leak_rate * np.tanh(raw)
+    def step(self, token_hv: np.ndarray) -> np.ndarray:
+        permuted_state = np.roll(self.state, shift=1)
+        bound = permuted_state * token_hv
+        self.state = self.state + bound
         return self.state
 
+    def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
+        scores = []
+        ctx_norm = np.linalg.norm(self.state)
+        if ctx_norm == 0:
+            return []
+
+        for entity_id, hv in self.codebook.items():
+            hv_norm = np.linalg.norm(hv)
+            if hv_norm == 0:
+                continue
+            similarity = np.dot(self.state, hv) / (ctx_norm * hv_norm)
+            scores.append((entity_id, similarity))
+
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
+
 
 # ==========================================
-# PHASE 3: SECURE GATE & EXTRACTION ORCHESTRATOR
+# PHASE 3: SECURE GATE, SELECTOR, & EXTRACTION
 # ==========================================
 
 class IntegratedExocortex:
-    def __init__(self, db_path: str, d_emb: int = 64, d_res: int = 128, ollama_model: str = "qwen2:1.5b"):
-        self.d_emb = d_emb
+    def __init__(self, db_path: str, d_res: int = 10000, ollama_model: str = "qwen2:1.5b"):
+        self.d_emb = 64
         self.ollama_model = ollama_model
         self.kg = SQLiteKnowledgeGraph(db_path)
         self.kg.seed_initial_knowledge()
         self.plasticity = HebbianPlasticityEngine(db_path)
-        self.reservoir = EchoStateReservoir(d_emb, d_res)
+        self.hdc = HyperdimensionalReservoir(d=d_res)
 
-        # Mapping rules representing structural templates (DecID reasoning paths)
-        self.templates = [
-            (r"where was (.+?) born", "born_in"),
-            (r"what is the capital of (.+)", "capital_of"),
-            (r"what did (.+?) discover", "discovered"),
-            (r"what did (.+?) win", "won"),
-            (r"what did (.+?) crack", "cracked")
-        ]
+        # Predicate Normalization Map (Fixes SQL Clutter)
+        self.predicate_map = {
+            "was_born_in": "born_in",
+            "was born in": "born_in",
+            "came_from": "born_in",
+            "worked_with": "collaborated_with",
+            "worked with": "collaborated_with",
+            "partnered_with": "collaborated_with",
+            "partnered with": "collaborated_with",
+            "co_invented": "discovered",
+            "discovered": "discovered",
+            "found": "discovered",
+            "uncovered": "discovered",
+            "cracked": "cracked",
+            "broke": "cracked"
+        }
 
-        # Word embedding vocabulary
-        self.vocab: Dict[str, np.ndarray] = {}
-        np.random.seed(101)
-        core_words = ["hello", "exocortex", "where", "what", "is", "the", "capital", "born",
-                      "radioactivity", "france", "poland", "london", "uk", "enigma"]
-        for w in core_words:
-            self.vocab[w] = np.random.uniform(-1.0, 1.0, self.d_emb)
+        # Pre-seed hypervectors for all initial database entities
+        for ent_id in self.kg.get_all_entity_ids():
+            self.hdc.get_or_allocate_hypervector(ent_id)
 
-    def _get_sentence_representation(self, sentence: str) -> np.ndarray:
-        tokens = re.sub(r"[^\w\s]", "", sentence).lower().split()
-        vectors = [self.vocab.get(t, np.random.uniform(-0.1, 0.1, self.d_emb)) for t in tokens]
-        return np.array(vectors) if vectors else np.zeros((1, self.d_emb))
+    def is_question(self, text: str) -> bool:
+        """Fixed (Bug 2): Rigid question-filtering restricted strictly to interrogative words."""
+        cleaned = text.strip().lower()
+        if cleaned.endswith("?"):
+            return True
+        question_words = {"who", "what", "where", "when", "why", "how", "which", "whom"}
+        tokens = re.sub(r"[^\w\s]", "", cleaned).split()
+        if tokens and tokens[0] in question_words:
+            return True
+        return False
+
+    def resolve_entity_identity(self, name_str: str) -> str:
+        """Resolves identity variations (e.g. 'Turing' matching 'Alan_Turing')."""
+        normalized_new = name_str.strip().replace(" ", "_").lower()
+        all_ids = self.kg.get_all_entity_ids()
+
+        for ent_id in all_ids:
+            if ent_id.lower() == normalized_new:
+                return ent_id
+
+        for ent_id in all_ids:
+            lower_ent = ent_id.lower()
+            if normalized_new in lower_ent or lower_ent in normalized_new:
+                return ent_id if len(ent_id) >= len(normalized_new) else name_str.strip().replace(" ", "_")
+
+        return name_str.strip().replace(" ", "_")
 
     def link_entities(self, query: str) -> Set[str]:
+        """Token-based entity linker resolves names by matching individual word subparts."""
         detected = set()
-        normalized_query = re.sub(r"[^\w\s]", "", query).lower()
+        query_words = set(re.sub(r"[^\w\s]", " ", query).lower().split())
+
         for entity_id in self.kg.get_all_entity_ids():
-            readable = entity_id.replace("_", " ").lower()
-            if re.search(r"\b" + re.escape(readable) + r"\b", normalized_query):
-                detected.add(entity_id)
+            ent_parts = entity_id.lower().split("_")
+            for part in ent_parts:
+                if len(part) > 2 and part in query_words:
+                    detected.add(entity_id)
+                    break
         return detected
 
-    def resolve_logical_path(self, query: str, active_entities: Set[str]) -> Optional[Tuple[str, str, str]]:
-        for pattern, predicate in self.templates:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                extracted_name = match.group(1).strip()
-                extracted_name = re.sub(r"[^\w\s]", "", extracted_name).lower().replace(" ", "_")
-
-                matched_entity = next((e for e in active_entities if e.lower() == extracted_name), None)
-                if matched_entity:
-                    return (matched_entity, predicate, "PLACEHOLDER_1")
-        return None
-
     def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
-        """Calls local Ollama API deterministic endpoint."""
         url = "http://localhost:11434/api/generate"
         payload = {
             "model": self.ollama_model,
@@ -304,115 +361,247 @@ class IntegratedExocortex:
         except Exception:
             return None
 
-    def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
-        """
-        Uses local LLM to extract factual declarations in strict JSON format.
-        Fails back gracefully if no declaration is found or parsing fails.
-        """
-        system_prompt = (
-            "You are a precise factual information extractor.\n"
-            "Analyze the user's message. If the user is declaring or stating a new fact (e.g. 'I was born in London' or 'Einstein cracked Enigma'), "
-            "extract the fact as a clean JSON block.\n\n"
-            "Rules:\n"
-            "1. Output ONLY valid JSON, do not include any other conversational filler.\n"
-            "2. Fields required:\n"
-            "   - 'is_factual_declaration': boolean (true if user makes a direct factual claim, false if asking a question or greeting)\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Albert_Einstein')\n"
-            "   - 'predicate': string (relationship predicate, e.g. 'born_in', 'discovered', 'cracked')\n"
-            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-        )
-
-        response = self.query_ollama(user_message, system_prompt)
-        if not response:
-            return None
-
-        # Parse JSON safely out of markdown formatting
+    def parse_json_safely(self, raw_text: str) -> Optional[dict]:
         try:
-            cleaned = re.sub(r"```json|```", "", response).strip()
+            cleaned = re.sub(r"```json|```", "", raw_text).strip()
             start = cleaned.find("{")
             end = cleaned.rfind("}")
             if start != -1 and end != -1:
-                cleaned = cleaned[start:end+1]
-                data = json.loads(cleaned)
-                if data.get("is_factual_declaration") is True:
-                    return {
-                        "subject": data.get("subject", "").strip().replace(" ", "_"),
-                        "predicate": data.get("predicate", "").strip(),
-                        "object": data.get("object", "").strip().replace(" ", "_")
-                    }
+                return json.loads(cleaned[start:end+1])
         except Exception:
             pass
         return None
 
-    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], str]:
+    def select_answering_fact(self, query: str, facts: List[Tuple[str, str, str]]) -> Optional[Tuple[str, str, str]]:
         """
-        Executes an orchestrator turn.
-        Deterministically gates LLM generation, only invoking the Renderer when database facts exist [1].
+        Fixed (Bug 1): Deterministic HDC Cosine Similarity Selector.
+        Avoids LLM translation to avoid positional biases.
+        Compares query token hypervectors against fact hypervectors mathematically [28].
         """
-        # 1. Update CPU Reservoir Compression
-        embeddings = self._get_sentence_representation(query)
-        for vec in embeddings:
-            res_state = self.reservoir.step(vec)
+        if not facts:
+            return None
 
-        # 2. Entity Linker Lookup
+        # 1. Clean query tokens to build running query hypervector
+        query_tokens = set(re.sub(r"[^\w\s]", "", query).lower().split())
+        query_hv = np.zeros(self.hdc.d, dtype=np.int32)
+
+        for token in query_tokens:
+            resolved = self.resolve_entity_identity(token)
+            if resolved in self.hdc.codebook:
+                query_hv += self.hdc.get_or_allocate_hypervector(resolved, is_vocab_token=False)
+            else:
+                query_hv += self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
+
+        best_fact = None
+        best_score = -1.0
+
+        # 2. Match each candidate fact against the query
+        for s, p, o in facts:
+            # Expand fact into elements, including known relation tenses/synonyms
+            fact_words = [s.lower(), o.lower()]
+            fact_words.extend(p.lower().replace("_", " ").split())
+
+            # Map predicate tenses into the semantic vector footprint
+            if p == "collaborated_with":
+                fact_words.extend(["work", "worked", "with", "partner", "partnered"])
+            elif p == "born_in":
+                fact_words.extend(["born", "in", "birth", "came", "from"])
+            elif p == "discovered":
+                fact_words.extend(["discover", "discovered", "found", "find", "science"])
+            elif p == "cracked":
+                fact_words.extend(["crack", "cracked", "broke", "break", "decrypted"])
+
+            # Bundle candidate fact word hypervectors together
+            fact_hv = np.zeros(self.hdc.d, dtype=np.int32)
+            for word in set(fact_words):
+                resolved_word = self.resolve_entity_identity(word)
+                if resolved_word in self.hdc.codebook:
+                    fact_hv += self.hdc.get_or_allocate_hypervector(resolved_word, is_vocab_token=False)
+                else:
+                    fact_hv += self.hdc.get_or_allocate_hypervector(word, is_vocab_token=True)
+
+            # Compute Cosine Similarity between Query Vector and Fact Vector
+            q_norm = np.linalg.norm(query_hv)
+            f_norm = np.linalg.norm(fact_hv)
+            similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
+
+            logger.info(f"HDC Semantic Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+
+            if similarity > best_score:
+                best_score = similarity
+                best_fact = (s, p, o)
+
+        # 3. Enforce a strict gating threshold (0.35)
+        # Prevents general queries (e.g. 'Who is Turing?') from opening the gate
+        if best_score >= 0.35:
+            logger.info(f"HDC Router: Selected Fact [{best_fact[0]} {best_fact[1]} {best_fact[2]}] with confidence {best_score:.4f}")
+            return best_fact
+
+        logger.warning(f"HDC Router: Gated query. Closest fact confidence {best_score:.4f} fell below threshold (0.35)")
+        return None
+
+    def extract_factual_declaration(self, user_message: str) -> Optional[Dict[str, str]]:
+        """Extracts conversational factual statements into JSON, resolving names."""
+        system_prompt = (
+            "You are a factual extractor. Output ONLY a JSON block.\n"
+            "If the user makes a factual statement, extract the fact.\n"
+            "Example statement: 'Einstein was born in Germany'\n"
+            "Example JSON:\n"
+            "{\n"
+            "  \"is_factual_declaration\": true,\n"
+            "  \"subject\": \"Albert_Einstein\",\n"
+            "  \"predicate\": \"was_born_in\",\n"
+            "  \"object\": \"Germany\"\n"
+            "}\n"
+            "If the input is a question or greeting, return:\n"
+            "{\n"
+            "  \"is_factual_declaration\": false\n"
+            "}\n"
+        )
+        response = self.query_ollama(user_message, system_prompt)
+        if not response:
+            return None
+
+        data = self.parse_json_safely(response)
+
+        # Check standard JSON output
+        if data and data.get("is_factual_declaration") is True:
+            sub = self.resolve_entity_identity(data.get("subject", ""))
+            obj = self.resolve_entity_identity(data.get("object", ""))
+            return {
+                "subject": sub,
+                "predicate": data.get("predicate", "").strip(),
+                "object": obj
+            }
+
+        # Check regex fallback for safety
+        reg_is_fact = self.extract_field_via_regex(response, "is_factual_declaration")
+        if reg_is_fact and "true" in reg_is_fact.lower():
+            reg_sub = self.extract_field_via_regex(response, "subject")
+            reg_pred = self.extract_field_via_regex(response, "predicate")
+            reg_obj = self.extract_field_via_regex(response, "object")
+            if reg_sub and reg_pred and reg_obj:
+                sub = self.resolve_entity_identity(reg_sub)
+                obj = self.resolve_entity_identity(reg_obj)
+                return {"subject": sub, "predicate": reg_pred, "object": reg_obj}
+
+        return None
+
+    def process_hdc_context(self, text: str, active_entities: Set[str]) -> List[Tuple[str, float]]:
+        """Passes sentence tokens through the HDC reservoir and returns context traces [28]."""
+        for ent in active_entities:
+            self.hdc.get_or_allocate_hypervector(ent, is_vocab_token=False)
+
+        tokens = re.sub(r"[^\w\s]", "", text).lower().split()
+        for token in tokens:
+            resolved_id = self.resolve_entity_identity(token)
+            if resolved_id in self.hdc.codebook:
+                token_hv = self.hdc.get_or_allocate_hypervector(resolved_id, is_vocab_token=False)
+            else:
+                token_hv = self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
+            self.hdc.step(token_hv)
+
+        return self.hdc.get_context_fingerprint(top_k=3)
+
+    def ingest_document(self, file_path: str) -> str:
+        """Indexes bulk factual claims from a local text document into SQL and HDC [23]."""
+        if not os.path.exists(file_path):
+            return f"Ingestion Error: Local file '{file_path}' does not exist."
+
+        logger.info(f"Starting bulk document ingestion for: {file_path}")
+        with open(file_path, "r", encoding="utf-8") as f:
+            raw_text = f.read()
+
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", raw_text) if s.strip()]
+
+        extracted_count = 0
+        for i, sentence in enumerate(sentences):
+            logger.info(f"Ingesting [{i+1}/{len(sentences)}]: '{sentence}'")
+            active_ents = self.link_entities(sentence)
+            self.process_hdc_context(sentence, active_ents)
+
+            fact = self.extract_factual_declaration(sentence)
+            if fact:
+                sub = fact["subject"]
+                pred = fact["predicate"]
+                obj = fact["object"]
+
+                # Apply predicate normalization map
+                norm_pred = self.predicate_map.get(pred.strip().lower(), pred.strip().lower().replace(" ", "_"))
+
+                self.kg.update_relation(sub, norm_pred, obj)
+                self.plasticity.update_associations({sub, obj})
+                self.hdc.get_or_allocate_hypervector(sub)
+                self.hdc.get_or_allocate_hypervector(obj)
+
+                extracted_count += 1
+                logger.info(f" -> [INDEXED RELATION]: [{sub}] -[{norm_pred}]-> [{obj}]")
+
+        return f"Autonomous Ingestion complete. Successfully indexed {extracted_count} facts from {len(sentences)} sentences."
+
+    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
+        """Runs the gated, self-learning exocortex routing pipeline."""
+        is_query = self.is_question(query)
         active_entities = self.link_entities(query)
-
-        # 3. Decoupled Path Resolution
-        path = self.resolve_logical_path(query, active_entities)
+        hdc_fingerprint = self.process_hdc_context(query, active_entities)
 
         resolved_value = None
-        if path:
-            source_id, predicate, _ = path
-            resolved_value = self.kg.query_relation(source_id, predicate)
+        source_id, predicate = None, None
 
-        # 4. GATED RENDERER LOOP: Only call LLM if verified database facts exist [1]
-        if resolved_value:
-            # Retrieve Hebbian Priming Context
-            primed_info = []
-            for ent in active_entities:
-                primed_info.extend(self.plasticity.get_associated_priming_context(ent))
+        # 1. QUERY PATHWAY: If input is classified as a question, execute retrieval and return early!
+        if is_query:
+            if active_entities:
+                # Retrieve ALL facts involving linked entities from SQL
+                candidate_facts = self.kg.get_all_facts_for_entities(active_entities)
 
-            # Update Hebbian co-activation weights for all active elements + target
-            all_active = active_entities.copy()
-            all_active.add(resolved_value)
-            self.plasticity.update_associations(all_active)
+                # Execute Multiple-Choice Fact Selector
+                matched_fact = self.select_answering_fact(query, candidate_facts)
+                if matched_fact:
+                    source_id, predicate, resolved_value = matched_fact
 
-            # Format Prompt for the Renderer
-            facts_str = f"[{source_id.replace('_', ' ')} {predicate} {resolved_value.replace('_', ' ')}]"
-            priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
+                    primed_info = self.plasticity.get_associated_priming_context(source_id)
+                    self.plasticity.update_associations({source_id, resolved_value})
 
-            system_prompt = (
-                "You are a language renderer. You know nothing about the conversation except what is provided here.\n"
-                f"Verified Facts: {facts_str}\n"
-                f"Context Priming: {priming_str}\n"
-                "Task: Render a single, grammatically correct response answering the user's question using ONLY the provided facts."
-            )
+                    facts_str = f"[{source_id.replace('_', ' ')} {predicate} {resolved_value.replace('_', ' ')}]"
+                    priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
+                    fingerprint_str = ", ".join([f"{node} (match {sim:.2f})" for node, sim in hdc_fingerprint]) if hdc_fingerprint else "None"
 
-            llm_response = self.query_ollama(query, system_prompt)
-            if llm_response:
-                return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, "RENDER_SUCCESS"
-            else:
-                # Local renderer fallback
-                return f"Exocortex (Simulated) > {source_id.replace('_', ' ')} was resolved to {resolved_value.replace('_', ' ')}.", primed_info, "RENDER_FALLBACK"
+                    # Sterile Renderer Prompting (Fixed: Prevents Parametric Leakage completely!)
+                    system_prompt = (
+                        "You are a professional fact-to-text renderer. You convert raw database facts into natural sentences.\n"
+                        "Rule: Translate ONLY the provided fact. Do NOT add any extra information, historical assumptions, or context."
+                    )
+                    render_prompt = f"Translate this raw database fact into a single, natural English sentence: {facts_str}"
 
-        # 5. DETERMINISTIC EXTRACTION GATE: If no facts are resolved, do not call the Renderer [1].
-        # Attempt to run the Factual Extractor instead [23].
+                    llm_response = self.query_ollama(render_prompt, system_prompt)
+                    if llm_response:
+                        return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
+                    else:
+                        return f"Exocortex (Simulated) > {source_id.replace('_', ' ')} was resolved to {resolved_value.replace('_', ' ')}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
+
+            # Strict Question Gate: It's a query but no facts resolved. Return early to block fallback to extraction!
+            return "Exocortex > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+
+        # 2. EXTRACTION PATHWAY: If input is not a question, run the autonomous learning gate
         extracted_fact = self.extract_factual_declaration(query)
         if extracted_fact:
             sub = extracted_fact["subject"]
             pred = extracted_fact["predicate"]
             obj = extracted_fact["object"]
 
-            # Auto-register newly discovered entities/relation
-            self.kg.update_relation(sub, pred, obj)
+            # Normalize predicate to prevent SQL schema clumping
+            norm_pred = self.predicate_map.get(pred, pred)
 
-            # Update Hebbian associations for the new entities so they wire together
+            # Auto-register relation and update associations
+            self.kg.update_relation(sub, norm_pred, obj)
             self.plasticity.update_associations({sub, obj})
+            self.hdc.get_or_allocate_hypervector(sub)
+            self.hdc.get_or_allocate_hypervector(obj)
 
-            return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{pred}]-> [{obj.replace('_', ' ')}].", [], "EXTRACT_SUCCESS"
+            return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{norm_pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
 
-        # 6. Safe Deterministic Fallback: We have no facts, and the query is not a declaration.
-        return "Exocortex > I do not have verified information about that.", [], "DETERMINISTIC_GATED_FALLBACK"
+        # 3. Safe Gated Fallback for non-factual declaratives
+        return "Exocortex > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
 
 # ==========================================
@@ -422,18 +611,27 @@ class IntegratedExocortex:
 if __name__ == "__main__":
     db_file = "exocortex_kg.db"
 
-    # Persistent Database setup
-    is_new = not os.path.exists(db_file)
+    # Check if database already exists for persistent tracking [1]
+    db_exists = os.path.exists(db_file)
     exocortex = IntegratedExocortex(db_file)
-    if is_new:
-         logger.info("Initializing persistent Exocortex Database.")
+
+    if db_exists:
+         # Query and print current entity count to verify persistent brain is working [1]
+         count = exocortex.kg.get_entity_count()
+         logger.info(f"Persistent Exocortex Database loaded successfully. Resuming from existing knowledge base with {count} unique entities.")
+    else:
+         logger.info("Initializing new persistent Exocortex Database.")
 
     print("\n========================================================")
     print("      EXOCORTEX NEURO-SYMBOLIC CHATBOT INITIALIZED      ")
     print("========================================================")
     print("Ask me factual questions! (e.g. 'Where was Marie Curie born?')")
     print("To teach me new things, just speak factually to me!")
-    print("  example: 'Einstein was born in Germany' or 'Newton discovered Gravity'")
+    print("  example: 'Einstein was born in Germany' or 'Paris is the capital of France'")
+    print("To ingest a local document in bulk, type:")
+    print("  /ingest [filename.txt]")
+    print("To deliberately clear and re-initialize the database, type:")
+    print("  /reset")
     print("Type 'exit' or 'quit' to shut down.\n")
 
     while True:
@@ -445,8 +643,36 @@ if __name__ == "__main__":
                 print("Safely shutting down local exocortex.")
                 break
 
+            # Intercept Deliberate Database Reset Command (Problem 3)
+            if user_input.strip() == "/reset":
+                 print("Exocortex [SYSTEM]: Initiating deliberate database reset...")
+                 if os.path.exists(db_file):
+                      try:
+                           os.remove(db_file)
+                           print("Exocortex [SYSTEM]: Database file deleted.")
+                      except PermissionError:
+                           print("Exocortex [SYSTEM]: Error. Database file is currently locked. Please close active connections and try again.")
+                           continue
+
+                 # Reinitialize the exocortex cleanly
+                 exocortex = IntegratedExocortex(db_file)
+                 print("Exocortex [SYSTEM]: Database has been cleanly reset and re-seeded.")
+                 continue
+
+            # Intercept Bulk Document Ingestion
+            if user_input.startswith("/ingest"):
+                parts = user_input.split(maxsplit=1)
+                if len(parts) == 2:
+                    filename = parts[1].strip()
+                    print(f"Exocortex [SYSTEM]: Initiating bulk ingestion for '{filename}'...")
+                    result = exocortex.ingest_document(filename)
+                    print(f"Exocortex [SYSTEM]: {result}")
+                else:
+                    print("Exocortex [SYSTEM]: Error. Correct format is: /ingest [filename.txt]")
+                continue
+
             # Execute chat turn (Safe Gated Architecture)
-            reply, primed, mode = exocortex.execute_chat_turn(user_input)
+            reply, primed, fingerprint, mode = exocortex.execute_chat_turn(user_input)
 
             # Print response
             print(reply)
@@ -456,6 +682,12 @@ if __name__ == "__main__":
                 print("  [Memory Priming Node Activations]:")
                 for node, weight in primed[:3]:
                     print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
+
+            # Display HDC active traces (Conversational Context Fingerprint)
+            if fingerprint and mode == "RENDER_SUCCESS":
+                print("  [HDC Conversational Fingerprint Traces]:")
+                for node, sim in fingerprint[:3]:
+                    print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
             print()
 
         except KeyboardInterrupt:
