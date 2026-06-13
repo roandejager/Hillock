@@ -4,16 +4,66 @@ import os
 import re
 import numpy as np
 import logging
-from typing import List, Tuple, Set, Optional
+import platform
+import multiprocessing
+import subprocess
+from typing import List, Tuple, Set, Optional, Dict
 
 # Import modular components
-from config import DB_FILE, OLLAMA_MODEL, HDC_THRESHOLD
+from config import DB_FILE, OLLAMA_MODEL, HDC_THRESHOLD, MAX_WORKERS
 from database import SQLiteKnowledgeGraph
 from plasticity import HebbianPlasticityEngine
 from reservoir import HyperdimensionalReservoir
 from ingestor import ingest_document_parallel
 
 logger = logging.getLogger("Exocortex.Main")
+
+
+def get_gpu_name() -> str:
+    """Uses nvidia-smi utility to dynamically query local GPU model [1]."""
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            encoding="utf-8"
+        )
+        return out.strip()
+    except Exception:
+        return "Non-NVIDIA GPU or nvidia-smi unavailable"
+
+
+def print_system_dashboard(exocortex: "IntegratedExocortex") -> None:
+    """Displays system specifications and database persistence status [1]."""
+    gpu = get_gpu_name()
+    cores = multiprocessing.cpu_count()
+    os_name = f"{platform.system()} {platform.release()}"
+    python_ver = platform.python_version()
+
+    entities = exocortex.kg.get_entity_count()
+    relations = exocortex.kg.get_relations_count()
+    synapses = exocortex.kg.get_synapse_count()
+
+    print("\n" + "="*60)
+    print("               EXOCORTEX SYSTEM SPECIFICATIONS              ")
+    print("="*60)
+    print(" [HARDWARE PROFILE]")
+    print(f"  * OS Environment : {os_name}")
+    print(f"  * CPU Cores      : {cores} Logical Threads")
+    print(f"  * GPU Unit       : {gpu}")
+    print(f"  * Parallel Workers: {MAX_WORKERS} Threads (GTX 1070 Optimized)")
+    print(f"  * Python Host    : {python_ver}")
+    print("-"*60)
+    print(" [PERSISTENT MEMORY GRAPH STATUS]")
+    print(f"  * Database File  : {DB_FILE} ({'Active' if os.path.exists(DB_FILE) else 'Initializing'})")
+    print(f"  * Unique Entities: {entities} registered nodes")
+    print(f"  * Fact Triples   : {relations} stored relations")
+    print(f"  * Synapses       : {synapses} active Hebbian connections")
+    print("-"*60)
+    print(" [BUILT-IN COMMAND REFERENCE] (Pillar 1)")
+    print("  * /ingest [file] [fast/thorough] : Index TXT/PDF files locally")
+    print("  * /mode [strict/balanced/convers] : Switch active AI personalities")
+    print("  * /reset                         : Clear and re-seed database")
+    print("  * exit / quit                    : Safely terminate session")
+    print("="*60 + "\n")
 
 
 class IntegratedExocortex:
@@ -30,8 +80,7 @@ class IntegratedExocortex:
             "was_born_in": "born_in", "was born in": "born_in", "was_born": "born_in", "was born": "born_in",
             "bear": "born_in", "born": "born_in", "came_from": "born_in",
             "work": "collaborated_with", "work_with": "collaborated_with", "worked_with": "collaborated_with",
-            "worked with": "collaborated_with", "partnered_with": "collaborated_with",
-            "partnered with": "collaborated_with",
+            "worked with": "collaborated_with", "partnered_with": "collaborated_with", "partnered with": "collaborated_with",
             "co_invented": "discovered", "discovered": "discovered", "found": "discovered", "uncovered": "discovered",
             "crack": "cracked", "cracked": "cracked", "broke": "cracked"
         }
@@ -103,7 +152,7 @@ class IntegratedExocortex:
             start = cleaned.find("{")
             end = cleaned.rfind("}")
             if start != -1 and end != -1:
-                return json.loads(cleaned[start:end + 1])
+                return json.loads(cleaned[start:end+1])
         except Exception:
             pass
         return None
@@ -113,8 +162,7 @@ class IntegratedExocortex:
         match = re.search(pattern, text, re.IGNORECASE)
         return match.group(1).strip() if match else None
 
-    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> \
-    List[Tuple[str, str, str, float]]:
+    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
         if not facts:
             return []
 
@@ -236,17 +284,13 @@ class IntegratedExocortex:
             "object": resolved_b
         }
 
-    def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[
-        str, str]:
-        priming_str = ", ".join(
-            [f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
-        fingerprint_str = ", ".join(
-            [f"{node} (match {sim:.2f})" for node, sim in hdc_fingerprint]) if hdc_fingerprint else "None"
+    def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[str, str]:
+        priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
+        fingerprint_str = ", ".join([f"{node} (match {sim:.2f})" for node, sim in hdc_fingerprint]) if hdc_fingerprint else "None"
 
-        # Problem 2: Mode definitions utilizing dynamic system prompts [1]
         if self.verbosity_mode == "STRICT":
             system_prompt = (
-                "You are a professional fact-to-text renderer. Translate ONLY the provided fact into one sentence. "
+                "You are a professional fact renderer. Translate ONLY the provided fact into one sentence. "
                 "Do not add any extra context, historical assumptions, or details."
             )
             render_prompt = f"Fact: {facts_str}"
@@ -306,8 +350,7 @@ class IntegratedExocortex:
                 fingerprint = self.hdc.get_context_fingerprint(top_k=1)
                 if fingerprint:
                     closest_entity, similarity = fingerprint[0]
-                    logger.info(
-                        f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
+                    logger.info(f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
                     active_entities.add(closest_entity)
 
         # Update HDC context state sequentially
@@ -341,13 +384,11 @@ class IntegratedExocortex:
                         facts_str = f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]"
                         source_id = s
                     else:
-                        facts_str = " | ".join(
-                            [f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]" for s, p, o, _ in matched_facts])
+                        facts_str = " | ".join([f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]" for s, p, o, _ in matched_facts])
                         source_id = matched_facts[0][0]
 
                     primed_info = self.plasticity.get_associated_priming_context(source_id)
-                    system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info,
-                                                                          hdc_fingerprint)
+                    system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info, hdc_fingerprint)
 
                     llm_response = self.query_ollama(render_prompt, system_prompt)
                     if llm_response:
@@ -375,29 +416,10 @@ class IntegratedExocortex:
 
 # Terminal loop orchestrator
 if __name__ == "__main__":
-    db_exists = os.path.exists(DB_FILE)
     exocortex = IntegratedExocortex(DB_FILE)
 
-    if db_exists:
-        count = exocortex.kg.get_entity_count()
-        logger.info(
-            f"Persistent Exocortex Database loaded successfully. Resuming from existing knowledge base with {count} unique entities.")
-    else:
-        logger.info("Initializing new persistent Exocortex Database.")
-
-    print("\n========================================================")
-    print("      EXOCORTEX NEURO-SYMBOLIC CHATBOT INITIALIZED      ")
-    print("========================================================")
-    print("Ask me factual questions! (e.g. 'Where was Marie Curie born?')")
-    print("To teach me new things, just speak factually to me!")
-    print("  example: 'Einstein was born in Germany' or 'Paris is the capital of France'")
-    print("To ingest a local document (TXT or PDF) in bulk, type:")
-    print("  /ingest [filename.ext]")
-    print("To switch personality modes live, type:")
-    print("  /mode [strict / balanced / conversational]")
-    print("To deliberately clear and re-initialize the database, type:")
-    print("  /reset")
-    print("Type 'exit' or 'quit' to shut down.\n")
+    # Render the System Status Dashboard on Startup [1]
+    print_system_dashboard(exocortex)
 
     while True:
         try:
@@ -409,28 +431,28 @@ if __name__ == "__main__":
                 break
 
             if user_input.startswith("/mode"):
-                parts = user_input.split()
-                if len(parts) == 2:
-                    mode_name = parts[1].strip().upper()
-                    if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
-                        exocortex.verbosity_mode = mode_name
-                        print(f"Exocortex [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
-                    else:
-                        print("Exocortex [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
-                else:
-                    print("Exocortex [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
-                continue
+                 parts = user_input.split()
+                 if len(parts) == 2:
+                      mode_name = parts[1].strip().upper()
+                      if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
+                           exocortex.verbosity_mode = mode_name
+                           print(f"Exocortex [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
+                      else:
+                           print("Exocortex [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
+                 else:
+                      print("Exocortex [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
+                 continue
 
             if user_input.strip() == "/reset":
-                print("Exocortex [SYSTEM]: Initiating deliberate database reset...")
-                exocortex.kg.clear_and_reinitialize()
-                exocortex.hdc.state = np.zeros(exocortex.hdc.d, dtype=np.float64)
-                exocortex.hdc.codebook.clear()
-                exocortex.hdc.vocab_book.clear()
-                for ent_id in exocortex.kg.get_all_entity_ids():
-                    exocortex.hdc.get_or_allocate_hypervector(ent_id)
-                print("Exocortex [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
-                continue
+                 print("Exocortex [SYSTEM]: Initiating deliberate database reset...")
+                 exocortex.kg.clear_and_reinitialize()
+                 exocortex.hdc.state = np.zeros(exocortex.hdc.d, dtype=np.float64)
+                 exocortex.hdc.codebook.clear()
+                 exocortex.hdc.vocab_book.clear()
+                 for ent_id in exocortex.kg.get_all_entity_ids():
+                     exocortex.hdc.get_or_allocate_hypervector(ent_id)
+                 print("Exocortex [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
+                 continue
 
             if user_input.startswith("/ingest"):
                 parts = user_input.split()
