@@ -8,7 +8,7 @@ import os
 import json
 import logging
 import sqlite3
-from exocortex_integration import IntegratedExocortex
+from main import IntegratedExocortex
 
 # Set up logging to file instead of stdout to keep output clean
 logging.basicConfig(level=logging.ERROR)
@@ -67,13 +67,15 @@ def run_evaluation():
     # Initialize fresh exocortex
     exocortex = IntegratedExocortex(db_file)
 
-    # 2. RUN AUTONOMOUS INGESTION
+    # 2. RUN AUTONOMOUS INGESTION (Problem 1 Speed Fix: Parallel Ingestion Mode)
     print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt'...")
-    ingest_result = exocortex.ingest_document("eval_facts.txt")
+    # Using fast=False (thorough) for the evaluation test cases to ensure deep parsing
+    from ingestor import ingest_document_parallel
+    ingest_result = ingest_document_parallel("eval_facts.txt", exocortex)
     print(f" -> {ingest_result}")
 
     # 3. EVALUATE EXTRACTION (Precision & Recall)
-    # Target facts contained in eval_facts.txt (Total: 7)
+    # Target relations in eval_facts.txt (Total: 7)
     target_facts = {
         ("Marie_Curie", "born_in", "Poland"),
         ("Alan_Turing", "born_in", "London"),

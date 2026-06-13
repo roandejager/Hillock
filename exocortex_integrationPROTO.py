@@ -1,12 +1,13 @@
 """
-Phase 3: Unified Exocortex Orchestrator (Optimized Ingestion Edition)
+Phase 3: Unified Exocortex Orchestrator (NER-Anchored Edition)
 Integrates SQLite Knowledge Graphs, Hebbian Co-activation,
 and CPU-bound Leaky Hyperdimensional Computing (HDC) Reservoirs.
 
 Upgrades:
-  - Fixed (Ingestion Parser): Properly splits filename and mode in /ingest.
-  - Fixed (Verb-Filter): Restored and corrected the SpaCy-based verb presence filter [1].
-  - Fixed (Fast Mode): Added 'fast_mode' toggle to bypass LLM calls during ingestion [1].
+  - Solved (Problem 1 - Ingestion Quality): Replaced dependency parsing with
+    Named Entity Recognition (NER) for strict entity anchoring [1].
+  - Solved (Problem 1 - Predicate Bleeding): Locked entities in Python first,
+    using the LLM strictly to extract connecting relation verbs [1, 23].
 """
 
 import sqlite3
@@ -301,8 +302,8 @@ class HyperdimensionalReservoir:
 
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
         """
-        Wired Readout: Computes cosine similarity between running context state
-        and static entity codebook [28, 48].
+        Wired Readout: Computes cosine similarity between the running, decayed
+        float context state and the static, unmutated entity codebook [28, 48].
         """
         scores = []
         ctx_norm = np.linalg.norm(self.state)
@@ -355,7 +356,7 @@ class IntegratedExocortex:
             "discovered": "discovered",
             "found": "discovered",
             "uncovered": "discovered",
-            "crack": "cracked",                 # Maps SpaCy 'cracked' root lemma
+            "cracked": "cracked",                 # Maps SpaCy 'cracked' root lemma
             "cracked": "cracked",
             "broke": "cracked"
         }
@@ -480,7 +481,6 @@ class IntegratedExocortex:
             elif p == "cracked" or p == "crack":
                 fact_words.extend(["crack", "cracked", "broke", "break", "decrypted"])
 
-            # Bundle candidate fact word hypervectors together
             fact_hv = np.zeros(self.hdc.d, dtype=np.int32)
             for word in set(fact_words):
                 resolved_word = self.resolve_entity_identity(word)
@@ -506,94 +506,94 @@ class IntegratedExocortex:
     def extract_factual_declaration_two_pass(self, sentence: str) -> Optional[Dict[str, str]]:
         """
         Solved (Problem 1): Two-Pass Relation Ingestor [1, 23].
-        1. Entity Anchoring Pass: Identifies related subjects.
-        2. Constrained Predicate Pass: Extracts verb while avoiding object bleeding.
+        1. Entity Anchoring Pass (Using SpaCy NER to deterministically lock subjects) [1].
+        2. Constrained Predicate Pass: Extracts verb while avoiding object bleeding [1].
         """
-        # Pass 1: Entity Anchoring (Determine Subject and Object first)
-        system_1 = (
-            "You are an entity extractor. Output ONLY a JSON block.\n"
-            "Identify and extract the two primary entities being related in the sentence.\n"
-            "Normalize them using snake_case (e.g., 'Marie_Curie').\n"
-            "Example JSON:\n"
-            "{\n"
-            "  \"entity_a\": \"Marie_Curie\",\n"
-            "  \"entity_b\": \"Radioactivity\"\n"
-            "}\n"
-        )
-        response_1 = self.query_ollama(sentence, system_1)
-        logger.info(f"DEBUG: Two-Pass - Pass 1 Raw Output:\n{response_1}")
-        if not response_1:
+        global nlp
+        if nlp is None:
             return None
 
-        data_1 = self.parse_json_safely(response_1)
-        ent_a, ent_b = None, None
-        if data_1 and "entity_a" in data_1 and "entity_b" in data_1:
-            ent_a = data_1["entity_a"]
-            ent_b = data_1["entity_b"]
-        else:
-            ent_a = self.extract_field_via_regex(response_1, "entity_a")
-            ent_b = self.extract_field_via_regex(response_1, "entity_b")
+        try:
+            doc = nlp(sentence)
+            content_labels = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "FAC", "PRODUCT"}
+            raw_ents = [ent for ent in doc.ents if ent.label_ in content_labels]
 
-        if not ent_a or not ent_b:
+            def is_clean_entity(text: str) -> bool:
+                cleaned_text = text.strip()
+                if len(cleaned_text) > 40:
+                    return False
+                if re.search(r"[^\w\s-]", cleaned_text) or re.search(r"\d", cleaned_text):
+                    return False
+                return True
+
+            clean_ents = [ent for ent in raw_ents if is_clean_entity(ent.text)]
+
+            # We need exactly 2 or 3 clean entities to proceed
+            if len(clean_ents) not in (2, 3):
+                return None
+
+            resolved_a = self.resolve_entity_identity(clean_ents[0].text)
+            resolved_b = self.resolve_entity_identity(clean_ents[1].text)
+
+            if resolved_a.lower() == resolved_b.lower():
+                return None
+
+            # Pass 2: Predicate Extraction under Anchored Constraints
+            system_2 = (
+                "You are a predicate extractor. Output ONLY a JSON block.\n"
+                "Extract ONLY the single verb or verb phrase that connects Entity A to Entity B in the sentence.\n"
+                "Rules:\n"
+                "1. Return ONLY the relationship verb, no nouns, subjects, or objects.\n"
+                f"2. Do NOT include '{resolved_a}' or '{resolved_b}' or any words from them in the predicate.\n"
+                "Example JSON:\n"
+                "{\n"
+                "  \"predicate\": \"discovered\"\n"
+                "}\n"
+            )
+            prompt_2 = (
+                f"Sentence: '{sentence}'\n"
+                f"Entity A: '{resolved_a}'\n"
+                f"Entity B: '{resolved_b}'"
+            )
+            response_2 = self.query_ollama(prompt_2, system_2)
+            logger.info(f"DEBUG: Two-Pass - Pass 2 Raw Output:\n{response_2}")
+            if not response_2:
+                return None
+
+            data_2 = self.parse_json_safely(response_2)
+            pred = None
+            if data_2 and "predicate" in data_2:
+                pred = data_2["predicate"]
+            else:
+                pred = self.extract_field_via_regex(response_2, "predicate")
+
+            if not pred:
+                return None
+
+            # Validation checks: Strip the target if bleeding still occurred
+            clean_pred = pred.strip().lower().replace(" ", "_")
+            normalized_b = resolved_b.lower().replace("_", "")
+
+            if normalized_b in clean_pred.replace("_", ""):
+                logger.warning(f"Validation: Bleeding detected! Stripped '{resolved_b}' from predicate '{pred}'")
+                clean_pred = clean_pred.replace(normalized_b, "").strip("_")
+
+            if not clean_pred or clean_pred in ["", "_"]:
+                clean_pred = "related_to"
+
+            return {
+                "subject": resolved_a,
+                "predicate": clean_pred,
+                "object": resolved_b
+            }
+        except Exception as e:
+            logger.error(f"Two-pass extraction failed: {e}")
             return None
-
-        # Resolve entity identities against database schema to prevent fragmentation
-        resolved_a = self.resolve_entity_identity(ent_a)
-        resolved_b = self.resolve_entity_identity(ent_b)
-
-        # Pass 2: Predicate Extraction under Anchored Constraints
-        system_2 = (
-            "You are a predicate extractor. Output ONLY a JSON block.\n"
-            "Extract ONLY the single verb or verb phrase that connects Entity A to Entity B in the sentence.\n"
-            "Rules:\n"
-            "1. Return ONLY the relationship verb, no nouns, subjects, or objects.\n"
-            f"2. Do NOT include '{resolved_a}' or '{resolved_b}' or any words from them in the predicate.\n"
-            "Example JSON:\n"
-            "{\n"
-            "  \"predicate\": \"discovered\"\n"
-            "}\n"
-        )
-        prompt_2 = (
-            f"Sentence: '{sentence}'\n"
-            f"Entity A: '{resolved_a}'\n"
-            f"Entity B: '{resolved_b}'"
-        )
-        response_2 = self.query_ollama(prompt_2, system_2)
-        logger.info(f"DEBUG: Two-Pass - Pass 2 Raw Output:\n{response_2}")
-        if not response_2:
-            return None
-
-        data_2 = self.parse_json_safely(response_2)
-        pred = None
-        if data_2 and "predicate" in data_2:
-            pred = data_2["predicate"]
-        else:
-            pred = self.extract_field_via_regex(response_2, "predicate")
-
-        if not pred:
-            return None
-
-        # Validation checks: Strip the target if bleeding still occurred
-        clean_pred = pred.strip().lower().replace(" ", "_")
-        normalized_b = resolved_b.lower().replace("_", "")
-
-        if normalized_b in clean_pred.replace("_", ""):
-            logger.warning(f"Validation: Bleeding detected! Stripped '{resolved_b}' from predicate '{pred}'")
-            clean_pred = clean_pred.replace(normalized_b, "").strip("_")
-
-        if not clean_pred or clean_pred in ["", "_"]:
-            clean_pred = "related_to"
-
-        return {
-            "subject": resolved_a,
-            "predicate": clean_pred,
-            "object": resolved_b
-        }
 
     def extract_fact_spacy(self, sentence: str) -> Optional[Dict[str, str]]:
         """
         Ingestion Speed Upgrade (Step 1): Classical NLP parsing via SpaCy [1].
-        Extracts facts in under 1ms on CPU, bypassing API calls entirely.
+        Extracts facts in under 1ms on CPU, using strict NER and grammatical constraints.
         """
         global nlp
         if nlp is None:
@@ -601,39 +601,60 @@ class IntegratedExocortex:
         try:
             doc = nlp(sentence)
 
-            # Find subject, verb, and object using grammatical dependency parsing [1]
-            subject, verb_token, obj = None, None, None
-            for token in doc:
-                if token.dep_ in ("nsubj", "nsubjpass") and subject is None:
-                    subject = token
-                if token.dep_ == "ROOT":
-                    verb_token = token
-                if token.dep_ in ("dobj", "attr", "pobj") and obj is None:
-                    obj = token
+            # Step 1: Run NER to extract entities [1]
+            content_labels = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "FAC", "PRODUCT"}
+            raw_ents = [ent for ent in doc.ents if ent.label_ in content_labels]
 
-            if not subject or not verb_token or not obj:
+            # Step 2: Filter entities (exclude those with numbers, punctuation, or >40 chars)
+            def is_clean_entity(text: str) -> bool:
+                cleaned_text = text.strip()
+                if len(cleaned_text) > 40:
+                    return False
+                if re.search(r"[^\w\s-]", cleaned_text) or re.search(r"\d", cleaned_text):
+                    return False
+                return True
+
+            clean_ents = [ent for ent in raw_ents if is_clean_entity(ent.text)]
+
+            # If we don't have exactly 2 or 3 clean entities, let the LLM handle it (complex sentences)
+            if len(clean_ents) not in (2, 3):
                 return None
 
-            # Expand subject and object to full noun phrases (excluding determiners like 'the', 'a')
-            subject_text = " ".join([t.text for t in subject.subtree if t.dep_ not in ("det",)])
-            obj_text = " ".join([t.text for t in obj.subtree if t.dep_ not in ("det",)])
-            predicate = verb_token.lemma_  # base form (lemma)
+            # Anchor the subject and object
+            ent_a = clean_ents[0].text
+            ent_b = clean_ents[1].text
 
-            # Handle auxiliary/copula structures ("Paris is capital of France" -> "capital_of")
-            if verb_token.lemma_ == "be":
+            # Step 3: Find the root verb or verb phrase connecting them
+            verb_token = None
+            for token in doc:
+                if token.dep_ == "ROOT":
+                    verb_token = token
+                    break
+
+            if not verb_token:
+                return None
+
+            predicate = verb_token.lemma_
+
+            # Handle auxiliary verbs ("was born" -> "born_in", "is capital of" -> "capital_of")
+            if verb_token.lemma_ in ("be", "have", "do"):
                 for child in verb_token.children:
-                    if child.dep_ in ("acomp", "xcomp", "attr"):
+                    if child.dep_ in ("acomp", "xcomp", "attr", "prep", "pobj"):
                         predicate = child.lemma_
                         break
-                # Special check for "was born" patterns
+                # Special check for born pattern
                 for token in doc:
-                    if token.dep_ == "ROOT" and token.lemma_ in ("born", "bear"):
+                    if token.lemma_ in ("born", "bear"):
                         predicate = "born_in"
                         break
 
             # Normalize names using existing entity codes
-            sub_resolved = self.resolve_entity_identity(subject_text.replace(" ", "_"))
-            obj_resolved = self.resolve_entity_identity(obj_text.replace(" ", "_"))
+            sub_resolved = self.resolve_entity_identity(ent_a.replace(" ", "_"))
+            obj_resolved = self.resolve_entity_identity(ent_b.replace(" ", "_"))
+
+            # Guard against identity loops (subject == object)
+            if sub_resolved.lower() == obj_resolved.lower():
+                return None
 
             return {
                 "subject": sub_resolved,
@@ -641,7 +662,7 @@ class IntegratedExocortex:
                 "object": obj_resolved
             }
         except Exception as e:
-            logger.error(f"SpaCy extraction failed: {e}")
+            logger.error(f"SpaCy NER extraction failed: {e}")
             return None
 
     def process_hdc_context(self, text: str, active_entities: Set[str]) -> List[Tuple[str, float]]:
@@ -662,8 +683,8 @@ class IntegratedExocortex:
 
     def is_worth_extracting(self, sentence: str) -> bool:
         """
-        Speed Booster: Syntactic pre-filter [1].
-        Skips sentences during ingestion that do not contain relational claims.
+        Speed Booster: Syntactic and NER-based pre-filter [1].
+        Skips lines during ingestion that do not contain both a verb and at least one named entity.
         """
         cleaned = sentence.strip()
         if len(cleaned.split()) < 3:
@@ -671,26 +692,22 @@ class IntegratedExocortex:
 
         global nlp
         if nlp is not None:
-            # Use SpaCy to check if a verb or auxiliary verb exists (takes < 1ms)
             doc = nlp(sentence)
+            # Verify the sentence contains at least one verb or auxiliary verb [1]
             has_verb = any(t.pos_ in ("VERB", "AUX") for t in doc)
             if not has_verb:
                 return False
-        else:
-            # If it doesn't mention capitalized nouns or known entities, skip it
-            capitalized_words = re.findall(r"\b[A-Z][a-z]+\b", cleaned)
-            active_ents = self.link_entities(cleaned)
 
-            if not active_ents and len(capitalized_words) < 2:
+            # Verify the sentence contains at least one named entity (PERSON, GPE, ORG, LOC, EVENT, FAC, PRODUCT)
+            content_labels = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "FAC", "PRODUCT"}
+            has_entity = any(ent.label_ in content_labels for ent in doc.ents)
+            if not has_entity:
                 return False
 
         return True
 
     def ingest_document(self, file_path: str, fast_mode: bool = True) -> str:
-        """
-        Indexes bulk factual claims from a local text or PDF document into SQL and HDC [23, 25].
-        Fixed: Respects fast_mode parameter to completely bypass LLM fallback on CPU [1].
-        """
+        """Indexes bulk factual claims from a local text or PDF document into SQL and HDC [23, 25]."""
         if not os.path.exists(file_path):
             return f"Ingestion Error: Local file '{file_path}' does not exist."
 
