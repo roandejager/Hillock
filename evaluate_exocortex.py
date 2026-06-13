@@ -1,5 +1,5 @@
 """
-Exocortex Scientific Evaluation Harness (Fixed Imports)
+Exocortex Scientific Evaluation Harness (Multi-Fact Compliant)
 Performs automated database seeding, sequential query testing,
 and outputs performance metrics: Precision, Recall, Retrieval Accuracy, and Gate Accuracy.
 """
@@ -7,7 +7,7 @@ and outputs performance metrics: Precision, Recall, Retrieval Accuracy, and Gate
 import os
 import json
 import logging
-import sqlite3 # Fixed: Restored missing sqlite3 database import
+import sqlite3
 from exocortex_integration import IntegratedExocortex
 
 # Set up logging to file instead of stdout to keep output clean
@@ -124,13 +124,21 @@ def run_evaluation():
                 # Gate correctly opened. Now check if the resolved fact is correct.
                 active_ents = exocortex.link_entities(q)
                 candidate_facts = exocortex.kg.get_all_facts_for_entities(active_ents)
-                matched = exocortex.select_answering_fact(q, candidate_facts)
 
-                if matched and matched[0] == q_data["expected_subject"] and matched[1] == q_data["expected_predicate"] and matched[2] == q_data["expected_object"]:
-                    status = "CORRECT"
-                    correct_answers += 1
+                # Fixed: Uses select_answering_facts list extraction [1]
+                matched_list = exocortex.select_answering_facts(q, candidate_facts)
+
+                if matched_list:
+                    # Validate against the top-matching fact
+                    matched = matched_list[0]
+                    if matched[0] == q_data["expected_subject"] and matched[1] == q_data["expected_predicate"] and matched[2] == q_data["expected_object"]:
+                        status = "CORRECT"
+                        correct_answers += 1
+                    else:
+                        status = "WRONG_FACT"
                 else:
-                    status = "WRONG_FACT"
+                    status = "FALSE_BLOCK"
+                    incorrect_blocks += 1
             else:
                 status = "FALSE_BLOCK"
                 incorrect_blocks += 1
