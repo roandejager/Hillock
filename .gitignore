@@ -1,0 +1,8 @@
+# IDE settings
+.idea/
+__pycache__/
+*.pyc
+
+# Local databases and runtime files
+*.db
+*.log

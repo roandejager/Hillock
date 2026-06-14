@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/Exocortex_LLM.iml" filepath="$PROJECT_DIR$/.idea/Exocortex_LLM.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/Hillock_LLM.iml" filepath="$PROJECT_DIR$/.idea/Hillock_LLM.iml" />
     </modules>
   </component>
 </project>
