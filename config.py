@@ -1,7 +1,7 @@
-"""Global configurations and hyperparameter settings for the Exocortex."""
+"""Global configurations and hyperparameter settings for the Hillock."""
 
 # File and Model Paths
-DB_FILE = "exocortex_kg.db"
+DB_FILE = "hillock_kg.db"
 OLLAMA_MODEL = "qwen2:1.5b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 

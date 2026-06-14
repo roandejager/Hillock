@@ -16,14 +16,14 @@ try:
 except ImportError:
     psutil = None
 
-logger = logging.getLogger("Exocortex.Ingestor")
+logger = logging.getLogger("Hillock.Ingestor")
 
 try:
     import pypdf
 except ImportError:
     pypdf = None
 
-def get_clean_sentences(file_path: str, exocortex) -> List[str]:
+def get_clean_sentences(file_path: str, hillock) -> List[str]:
     """Reads raw TXT or PDF files and segments them into cleaned sentence arrays."""
     ext = os.path.splitext(file_path)[1].lower()
     raw_text = ""
@@ -54,7 +54,7 @@ def segment_into_overlapping_blocks(sentences: List[str], block_size: int = BLOC
             break
     return blocks
 
-def extract_relations_from_block(block_text: str, exocortex) -> List[Dict[str, str]]:
+def extract_relations_from_block(block_text: str, hillock) -> List[Dict[str, str]]:
     """Passes a paragraph block to the local LLM to extract all relational triples."""
     system_prompt = (
         "You are a precise, structural information extraction engine. Output ONLY a JSON array.\n"
@@ -71,11 +71,11 @@ def extract_relations_from_block(block_text: str, exocortex) -> List[Dict[str, s
         "4. If no clear relationships exist, return an empty array [].\n"
     )
 
-    response = exocortex.query_ollama(block_text, system_prompt)
+    response = hillock.query_ollama(block_text, system_prompt)
     if not response:
         return []
 
-    extracted_triples = exocortex.parse_json_safely(response)
+    extracted_triples = hillock.parse_json_safely(response)
     if isinstance(extracted_triples, list):
         return extracted_triples
 
@@ -89,26 +89,26 @@ def extract_relations_from_block(block_text: str, exocortex) -> List[Dict[str, s
         pass
     return triples
 
-def ingest_document_parallel(file_path: str, exocortex) -> str:
+def ingest_document_parallel(file_path: str, hillock) -> str:
     """Orchestrates high-speed, parallelized paragraph extraction with real-time logs and specs [1]."""
     start_time = time.perf_counter()
 
     try:
-        sentences = get_clean_sentences(file_path, exocortex)
+        sentences = get_clean_sentences(file_path, hillock)
     except Exception as e:
         return str(e)
 
     # Group sentences into paragraph blocks
     blocks = segment_into_overlapping_blocks(sentences)
-    print(f"\nExocortex [INGESTOR]: Chunked '{os.path.basename(file_path)}' ({len(sentences)} sentences) into {len(blocks)} blocks.")
-    print(f"Exocortex [INGESTOR]: Spawning {MAX_WORKERS} parallel workers on your CPU cores...")
+    print(f"\nHillock [INGESTOR]: Chunked '{os.path.basename(file_path)}' ({len(sentences)} sentences) into {len(blocks)} blocks.")
+    print(f"Hillock [INGESTOR]: Spawning {MAX_WORKERS} parallel workers on your CPU cores...")
 
     extracted_relations = []
     completed_blocks = 0
 
     # Execute parallel LLM requests using ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(extract_relations_from_block, block, exocortex): (idx, block) for idx, block in enumerate(blocks)}
+        futures = {executor.submit(extract_relations_from_block, block, hillock): (idx, block) for idx, block in enumerate(blocks)}
 
         for future in as_completed(futures):
             idx, block_text = futures[future]
@@ -117,21 +117,21 @@ def ingest_document_parallel(file_path: str, exocortex) -> str:
                 triples = future.result()
                 valid_block_extractions = []
                 for triple in triples:
-                    sub = exocortex.resolve_entity_identity(triple.get("subject", ""))
+                    sub = hillock.resolve_entity_identity(triple.get("subject", ""))
                     pred = triple.get("predicate", "").strip()
-                    obj = exocortex.resolve_entity_identity(triple.get("object", ""))
+                    obj = hillock.resolve_entity_identity(triple.get("object", ""))
 
                     if not sub or not pred or not obj:
                         continue
 
                     # Apply predicate normalization map
-                    norm_pred = exocortex.predicate_map.get(pred.strip().lower(), pred.strip().lower().replace(" ", "_"))
+                    norm_pred = hillock.predicate_map.get(pred.strip().lower(), pred.strip().lower().replace(" ", "_"))
 
                     # Store relation and seed HDC space
-                    exocortex.kg.update_relation(sub, norm_pred, obj)
-                    exocortex.plasticity.update_associations({sub, obj})
-                    exocortex.hdc.get_or_allocate_hypervector(sub)
-                    exocortex.hdc.get_or_allocate_hypervector(obj)
+                    hillock.kg.update_relation(sub, norm_pred, obj)
+                    hillock.plasticity.update_associations({sub, obj})
+                    hillock.hdc.get_or_allocate_hypervector(sub)
+                    hillock.hdc.get_or_allocate_hypervector(obj)
 
                     valid_block_extractions.append(f"[{sub}] -[{norm_pred}]-> [{obj}]")
                     extracted_relations.append((sub, norm_pred, obj))
