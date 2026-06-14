@@ -8,10 +8,10 @@ Hi! This is **Hillock**, which is basically a local, personal memory system I've
 
 ## 📊 Quick Performance Baseline
 
-I put this prototype through a really tough, multi-clause scientific benchmark with complex sentence structures and hard negatives. Running a tiny local Qwen 1.5B model, here is how it did:
+I put this prototype through a massive, highly rigorous 30-sentence scientific benchmark with complex sentence structures, deep distractors, and tricky "hard negative" queries. Running a tiny local Qwen 1.5B model, here is how it did:
 
-* **Retrieval Accuracy**: **50.0%** (It retrieved the correct facts for half of the complex queries, while others got blocked or tripped up).
-* **Gate Accuracy**: **50.0%** (It successfully blocked half of the unanswerable/hallucinatory queries).
+* **Retrieval Accuracy**: **30.0%** (It retrieved the correct facts for some of the highly complex queries, but the tiny model missed others during extraction).
+* **Gate Accuracy**: **30.0%** (It successfully blocked many unanswerable/hallucinatory queries, though some leaks occurred due to tiny model extraction errors).
 
 *(For a more detailed technical breakdown of these metrics and why running a tiny 1.5B model on complex grammar is actually quite hard, check out the Benchmark section at the bottom.)*
 
@@ -89,17 +89,17 @@ Here is the exact diagnostic output from the upgraded, highly rigorous evaluatio
 
 ```text
 --------------------------------------------------
-  * Extraction Precision : 25.0%  (Correctly structured factual nodes)
-  * Extraction Recall    : 42.9%  (Completeness of indexed relations)
-  * Retrieval Accuracy   : 50.0%  (Factual accuracy on answerable queries)
-  * Gate Accuracy        : 50.0%  (Hallucination defense rate)
+  * Extraction Precision : 10.6%  (Correctly structured factual nodes)
+  * Extraction Recall    : 22.7%  (Completeness of indexed relations)
+  * Retrieval Accuracy   : 30.0%  (Factual accuracy on answerable queries)
+  * Gate Accuracy        : 30.0%  (Hallucination defense rate)
 --------------------------------------------------
 ```
 
 ### Why the scores are what they are:
-* **The 25% Extraction Precision & 42.9% Recall**: We moved the evaluation set to highly complex sentences (e.g., *"Einstein, famous for his theoretical work, also worked alongside..."*). A tiny 1.5B parameter model really struggles with this. It extracted weird relations like `[Einstein] -[discovered]-> [theoretical_work]` because it doesn't have the attention span to separate nouns from actions in complex clauses.
-* **The "Isaac Newton" Hallucination Leak**: Interestingly, the system successfully extracted `[Isaac_Newton] -[born_in]-> [Woolsthorpe,England]` from the text and answered `"Where was Isaac Newton born?"` correctly. However, because our strict evaluation script expected this query to be blocked (since it wasn't in the original seed database), the script flagged it as a "leak" even though the system technically parsed and retrieved it perfectly!
-* **The "Albert Einstein" Leak**: Because the 1.5B model hallucinated that Einstein discovered `"theoretical_work"`, when asked *"What did Albert Einstein discover?"*, the HDC matcher opened the gate and returned that fact.
+* **The 10.6% Extraction Precision & 22.7% Recall**: We pushed the evaluation set to a massive **30 complex, multi-subject sentences** spanning Quantum Physics, Computer Science, Space Exploration, and Philosophy. A tiny 1.5B parameter model (`qwen2:1.5b`) is simply too small to parse this much dense text without getting confused. It hallucinated relationships like `[James_Watson] -[discovered]-> [double-helix_model_of_DNA]` or `[Grace_Hopper] -[became_a_pioneer]-> [developed_the_first_compiler]`.
+* **The "Newton / Galileo / Aristotle" Blocks**: Because the 1.5B model failed to parse their clean relations during the parallel ingestion phase, those questions were safely blocked during step 2 (resulting in correct blocks for unanswerable ones but false blocks for answerable ones).
+* **The "Edison / Feynman" Leaks**: Because the 1.5B model extracted noisy relations during ingestion (like `[Heinrich_Hertz] -[born_in]-> [Hamburg,_Germany]`), when asked about unmentioned things (like who Hertz collaborated with), the gate opened on the birth fact, resulting in "leaks" under the strict test suite.
 * **Vector Normalization**: The retriever matching itself is mathematically highly stable. By keeping all candidate facts strictly bound to exactly 3 unique components (Subject, Object, and best-matching Predicate word), we prevent shorter facts from having artificially higher similarity scores.
 
 ---
@@ -109,12 +109,4 @@ Here is the exact diagnostic output from the upgraded, highly rigorous evaluatio
 * `config.py` — Holds all the hyperparameters (HDC dimensions, decay rates, etc.).
 * `database.py` — The SQLite interface for symbolic fact storage.
 * `ingestor.py` — Spawns parallel worker threads to chunk and parse documents.
-* `plasticity.py` — Tracks Hebbian co-activation weights between concepts.
-* `reservoir.py` — The vector symbolic architecture context math.
-* `main.py` — Orchestrates the console loop, pronoun resolution, and gating.
-* `evaluate_hillock_PROTO_ish.py` — The automated evaluation script.
-
----
-
-## 🤯 Small Fun (ish) Fact
-The project is named after the biological *Axon Hillock*—the exact gatekeeper region of a human neuron that sums up electrical signals and decides whether to fire (open the gate) or remain silent (block).
+* `plasticity.py` — Tracks Hebbian co-activation weights betwee
