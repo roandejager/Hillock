@@ -101,14 +101,24 @@ class IntegratedExocortex:
 
     def resolve_entity_identity(self, name_str: str) -> str:
         normalized_new = name_str.strip().replace(" ", "_").lower()
+
+        # 1. Do not resolve common short prepositions or pronouns to complex entities
+        if len(normalized_new) <= 2:
+            return name_str.strip().replace(" ", "_")
+
         all_ids = self.kg.get_all_entity_ids()
+
+        # 2. Perfect Match
         for ent_id in all_ids:
             if ent_id.lower() == normalized_new:
                 return ent_id
+
+        # 3. Safe Component Match (checks split parts rather than raw substring)
         for ent_id in all_ids:
-            lower_ent = ent_id.lower()
-            if normalized_new in lower_ent or lower_ent in normalized_new:
-                return ent_id if len(ent_id) >= len(normalized_new) else name_str.strip().replace(" ", "_")
+            lower_parts = ent_id.lower().split("_")
+            if normalized_new in lower_parts:
+                return ent_id
+
         return name_str.strip().replace(" ", "_")
 
     def link_entities(self, query: str) -> Set[str]:
@@ -178,17 +188,19 @@ class IntegratedExocortex:
 
         scored_facts = []
         for s, p, o in facts:
-            fact_words = [s.lower(), o.lower()]
-            fact_words.extend(p.lower().replace("_", " ").split())
+            # Instead of an un-anchored bag-of-words, build a structured context representation.
+            # Keep the semantic base compact to prevent massive norm variances.
+            fact_words = [s.lower(), o.lower(), p.lower().replace("_", " ")]
 
-            if p == "collaborated_with" or p == "work":
-                fact_words.extend(["work", "worked", "with", "partner", "partnered", "collaborated"])
-            elif p == "born_in" or p == "bear":
-                fact_words.extend(["born", "in", "birth", "came", "from", "bear", "was"])
-            elif p == "discovered" or p == "discover":
-                fact_words.extend(["discover", "discovered", "found", "find", "science"])
-            elif p == "cracked" or p == "crack":
-                fact_words.extend(["crack", "cracked", "broke", "break", "decrypted"])
+            # Safely append only the most critical predicate context
+            if p in ["collaborated_with", "work"]:
+                fact_words.append("collaborated")
+            elif p in ["born_in", "bear"]:
+                fact_words.append("born")
+            elif p in ["discovered", "discover"]:
+                fact_words.append("discovered")
+            elif p in ["cracked", "crack"]:
+                fact_words.append("cracked")
 
             fact_hv = np.zeros(self.hdc.d, dtype=np.int32)
             for word in set(fact_words):
