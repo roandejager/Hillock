@@ -8,7 +8,7 @@ import os
 import json
 import logging
 import sqlite3
-from main import IntegratedExocortex
+from main import IntegratedHillock
 
 # Set up logging to file instead of stdout to keep output clean
 logging.basicConfig(level=logging.ERROR)
