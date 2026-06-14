@@ -49,8 +49,8 @@ If you actually want to try running this clunky prototype, it is highly recommen
 
 ### 1. Clone and Navigate
 ```bash
-git clone https://github.com/yourusername/Hillock_Memory.git
-cd Hillock_Memory
+git clone https://github.com/roandejager/Hillock.git
+cd Hillock
 ```
 
 ### 2. Set Up Virtual Environment
@@ -85,7 +85,7 @@ Inside the console, you can use these commands:
 
 ## 📊 Detailed Technical Benchmarks
 
-Here is the exact diagnostic output from the upgraded, highly rigorous evaluation script (`evaluate_hillock_proto.py`):
+Here is the exact diagnostic output from the upgraded, highly rigorous evaluation script (`evaluate_hillock_PROTO_ish.py`):
 
 ```text
 --------------------------------------------------
@@ -112,7 +112,9 @@ Here is the exact diagnostic output from the upgraded, highly rigorous evaluatio
 * `plasticity.py` — Tracks Hebbian co-activation weights between concepts.
 * `reservoir.py` — The vector symbolic architecture context math.
 * `main.py` — Orchestrates the console loop, pronoun resolution, and gating.
-* `evaluate_hillock_proto.py` — The automat
+* `evaluate_hillock_PROTO_ish.py` — The automated evaluation script.
+
+---
 
 ## 🤯 Small Fun (ish) Fact
-The project is named after the biological *Axon Hillock*—the exact gatekeeper region of a human neuron that sums up electrical signals and decides whether to fire (open the gate) or remain silent (block). 
+The project is named after the biological *Axon Hillock*—the exact gatekeeper region of a human neuron that sums up electrical signals and decides whether to fire (open the gate) or remain silent (block).
