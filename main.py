@@ -181,7 +181,8 @@ class IntegratedExocortex:
         match = re.search(pattern, text, re.IGNORECASE)
         return match.group(1).strip() if match else None
 
-    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
+    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> \
+    List[Tuple[str, str, str, float]]:
         if not facts:
             return []
 
@@ -197,27 +198,38 @@ class IntegratedExocortex:
 
         scored_facts = []
         for s, p, o in facts:
-            # Instead of an un-anchored bag-of-words, build a structured context representation.
-            # Keep the semantic base compact to prevent massive norm variances.
-            fact_words = [s.lower(), o.lower(), p.lower().replace("_", " ")]
+            # Resolve subject and object identities
+            s_resolved = self.resolve_entity_identity(s)
+            o_resolved = self.resolve_entity_identity(o)
 
-            # Safely append only the most critical predicate context
+            # Extract keywords for query overlap
+            pred_keywords = [p.lower().replace("_", " ")]
             if p in ["collaborated_with", "work"]:
-                fact_words.append("collaborated")
+                pred_keywords.extend(["work", "worked", "with", "partner", "collaborated"])
             elif p in ["born_in", "bear"]:
-                fact_words.append("born")
+                pred_keywords.extend(["born", "in", "birth"])
             elif p in ["discovered", "discover"]:
-                fact_words.append("discovered")
+                pred_keywords.extend(["discover", "discovered", "found"])
             elif p in ["cracked", "crack"]:
-                fact_words.append("cracked")
+                pred_keywords.extend(["crack", "cracked", "broke"])
+
+            # Dynamically select the single best-matching predicate word
+            best_pred_word = p.lower()
+            for kw in pred_keywords:
+                if kw in query_tokens:
+                    best_pred_word = kw
+                    break
+
+            # Strictly 3 vector components ensures perfectly balanced norms across all facts
+            components = [s_resolved, o_resolved, best_pred_word]
 
             fact_hv = np.zeros(self.hdc.d, dtype=np.int32)
-            for word in set(fact_words):
-                resolved_word = self.resolve_entity_identity(word)
-                if resolved_word in self.hdc.codebook:
-                    fact_hv += self.hdc.get_or_allocate_hypervector(resolved_word, is_vocab_token=False)
+            for comp in set(components):
+                resolved_comp = self.resolve_entity_identity(comp)
+                if resolved_comp in self.hdc.codebook:
+                    fact_hv += self.hdc.get_or_allocate_hypervector(resolved_comp, is_vocab_token=False)
                 else:
-                    fact_hv += self.hdc.get_or_allocate_hypervector(word, is_vocab_token=True)
+                    fact_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True)
 
             q_norm = np.linalg.norm(query_hv)
             f_norm = np.linalg.norm(fact_hv)
