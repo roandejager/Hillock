@@ -778,7 +778,7 @@ class IntegratedExocortex:
         if self.verbosity_mode == "STRICT":
             system_prompt = (
                 "You are a professional fact-to-text renderer. Translate ONLY the provided fact into one sentence. "
-                "Do not add any extra context, historical assumptions, or details."
+                "Do not add any extra_old context, historical assumptions, or details."
             )
             render_prompt = f"Fact: {facts_str}"
 
