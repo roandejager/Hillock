@@ -7,7 +7,9 @@ __pycache__/
 *.db
 *.log
 
-# Keep prototypes and test files locally only (Do not upload to GitHub)
+# Keep prototypes, PDFs, and old files locally only (Do not upload to GitHub)
 *PROTO*
 *facts.txt
 eval_questions.json
+*.pdf
+extra_old/
