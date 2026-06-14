@@ -65,7 +65,10 @@ def extract_relations_from_block(block_text: str, exocortex) -> List[Dict[str, s
         "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie' or 'Alan_Turing')\n"
         "   - 'predicate': string (relationship verb, e.g. 'born_in', 'collaborated_with', 'discovered', 'cracked')\n"
         "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-        "3. If no clear relationships exist, return an empty array [].\n"
+        "3. Be extremely careful with subject-predicate association. Only extract a relationship if the subject "
+        "explicitly performed the action described by the predicate in the text. "
+        "Do not attribute actions to adjacent entities mentioned in other sentences.\n"
+        "4. If no clear relationships exist, return an empty array [].\n"
     )
 
     response = exocortex.query_ollama(block_text, system_prompt)
