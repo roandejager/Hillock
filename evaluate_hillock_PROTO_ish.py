@@ -42,14 +42,14 @@ def generate_test_assets():
     ]
 
     # Always write fresh files to ensure the tough benchmarks are used
-    with open("eval_facts.txt", "w", encoding="utf-8") as f:
+    with open("extra_old/eval_facts.txt", "w", encoding="utf-8") as f:
         f.write(facts)
 
-    with open("eval_questions.json", "w", encoding="utf-8") as f:
+    with open("extra_old/eval_questions.json", "w", encoding="utf-8") as f:
         json.dump(questions, f, indent=2)
 
 def run_evaluation():
-    db_file = "exocortex_eval.db"
+    db_file = "extra_old/exocortex_eval.db"
 
     # 1. Clean up old evaluation DB to guarantee pristine testing environment
     if os.path.exists(db_file):
@@ -70,7 +70,7 @@ def run_evaluation():
     print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt'...")
     # Using fast=False (thorough) for the evaluation test cases to ensure deep parsing
     from ingestor import ingest_document_parallel
-    ingest_result = ingest_document_parallel("eval_facts.txt", exocortex)
+    ingest_result = ingest_document_parallel("extra_old/eval_facts.txt", exocortex)
     print(f" -> {ingest_result}")
 
     # 3. EVALUATE EXTRACTION (Precision & Recall)
@@ -100,7 +100,7 @@ def run_evaluation():
 
     # 4. RUN RETRIEVAL BENCHMARK
     print("\n[Step 2/3]: Querying the Gated Retriever...")
-    with open("eval_questions.json", "r", encoding="utf-8") as f:
+    with open("extra_old/eval_questions.json", "r", encoding="utf-8") as f:
         questions = json.load(f)
 
     correct_answers = 0

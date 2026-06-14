@@ -1,4 +1,4 @@
-"""Manages gradient-free co-activation associations (Synaptic Memory) [3]."""
+"""Manages gradient-free co-activation associations (Synaptic Memory)."""
 
 import sqlite3
 from typing import List, Tuple, Set

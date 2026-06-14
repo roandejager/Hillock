@@ -3,6 +3,11 @@
 __pycache__/
 *.pyc
 
-# Local databases and runtime files
+# Local databases and runtime logs
 *.db
 *.log
+
+# Keep prototypes and test files locally only (Do not upload to GitHub)
+*PROTO*
+*facts.txt
+eval_questions.json

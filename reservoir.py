@@ -1,4 +1,4 @@
-"""CPU-bound Context Compressor using Vector Symbolic Architectures (VSA) [1, 28]."""
+"""CPU-bound Context Compressor using Vector Symbolic Architectures (VSA)."""
 
 import numpy as np
 from typing import Dict, List, Tuple
@@ -20,7 +20,7 @@ class HyperdimensionalReservoir:
         return book[name_id]
 
     def step(self, token_hv: np.ndarray, decay: float = HDC_DECAY) -> np.ndarray:
-        """Fixed (Problem 2 math error): Correct leaky reservoir update [28, 48]."""
+        """Correct leaky reservoir update."""
         bound_token = np.roll(self.state, shift=1) * token_hv
         self.state = (decay * self.state) + bound_token
         return self.state

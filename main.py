@@ -16,11 +16,11 @@ from plasticity import HebbianPlasticityEngine
 from reservoir import HyperdimensionalReservoir
 from ingestor import ingest_document_parallel
 
-logger = logging.getLogger("Exocortex.Main")
+logger = logging.getLogger("Hillock.Main")
 
 
 def get_gpu_name() -> str:
-    """Uses nvidia-smi utility to dynamically query local GPU model [1]."""
+    """Uses nvidia-smi utility to dynamically query local GPU model."""
     try:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
@@ -31,19 +31,19 @@ def get_gpu_name() -> str:
         return "Non-NVIDIA GPU or nvidia-smi unavailable"
 
 
-def print_system_dashboard(exocortex: "IntegratedExocortex") -> None:
-    """Displays system specifications and database persistence status [1]."""
+def print_system_dashboard(hillock: "IntegratedHillock") -> None:
+    """Displays system specifications and database persistence status."""
     gpu = get_gpu_name()
     cores = multiprocessing.cpu_count()
     os_name = f"{platform.system()} {platform.release()}"
     python_ver = platform.python_version()
 
-    entities = exocortex.kg.get_entity_count()
-    relations = exocortex.kg.get_relations_count()
-    synapses = exocortex.kg.get_synapse_count()
+    entities = hillock.kg.get_entity_count()
+    relations = hillock.kg.get_relations_count()
+    synapses = hillock.kg.get_synapse_count()
 
     print("\n" + "="*60)
-    print("               EXOCORTEX SYSTEM SPECIFICATIONS              ")
+    print("               HILLOCK SYSTEM SPECIFICATIONS              ")
     print("="*60)
     print(" [HARDWARE PROFILE]")
     print(f"  * OS Environment : {os_name}")
@@ -66,7 +66,7 @@ def print_system_dashboard(exocortex: "IntegratedExocortex") -> None:
     print("="*60 + "\n")
 
 
-class IntegratedExocortex:
+class IntegratedHillock:
     def __init__(self, db_path: str = DB_FILE, ollama_model: str = OLLAMA_MODEL):
         self.kg = SQLiteKnowledgeGraph(db_path)
         self.kg.seed_initial_knowledge()
@@ -75,7 +75,7 @@ class IntegratedExocortex:
         self.ollama_model = ollama_model
         self.verbosity_mode = "BALANCED"  # Options: STRICT, BALANCED, CONVERSATIONAL
 
-        # Predicate Normalization Map [1]
+        # Predicate Normalization Map
         self.predicate_map = {
             "was_born_in": "born_in", "was born in": "born_in", "was_born": "born_in", "was born": "born_in",
             "bear": "born_in", "born": "born_in", "came_from": "born_in",
@@ -324,7 +324,7 @@ class IntegratedExocortex:
         if self.verbosity_mode == "STRICT":
             system_prompt = (
                 "You are a professional fact renderer. Translate ONLY the provided fact into one sentence. "
-                "Do not add any extra context, historical assumptions, or details."
+                "Do not add any extra_old context, historical assumptions, or details."
             )
             render_prompt = f"Fact: {facts_str}"
 
@@ -357,7 +357,7 @@ class IntegratedExocortex:
         return system_prompt, render_prompt
 
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
-        """Gating routing controller with pronoun coreference resolution [1]."""
+        """Gating routing controller with pronoun coreference resolution."""
         is_query = self.is_question(query)
 
         greetings = {"hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye"}
@@ -367,11 +367,11 @@ class IntegratedExocortex:
             dummy_primed = []
             dummy_fingerprint = []
             if self.verbosity_mode == "CONVERSATIONAL":
-                return "Exocortex > Hello! I am your conversational exocortex. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
+                return "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
             elif self.verbosity_mode == "BALANCED":
-                return "Exocortex > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
+                return "Hillock > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
             else:
-                return "Exocortex > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+                return "Hillock > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
         active_entities = self.link_entities(query)
 
@@ -425,11 +425,11 @@ class IntegratedExocortex:
 
                     llm_response = self.query_ollama(render_prompt, system_prompt)
                     if llm_response:
-                        return f"Exocortex (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
+                        return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
                     else:
-                        return f"Exocortex (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
+                        return f"Hillock (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
-            return "Exocortex > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+            return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
         # Safe Two-Pass Extraction conversational learning pathway [1, 23]
         extracted_fact = self.extract_factual_declaration_two_pass(query)
@@ -442,17 +442,17 @@ class IntegratedExocortex:
             self.plasticity.update_associations({sub, obj})
             self.hdc.get_or_allocate_hypervector(sub)
             self.hdc.get_or_allocate_hypervector(obj)
-            return f"Exocortex (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{norm_pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
+            return f"Hillock (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{norm_pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
 
-        return "Exocortex > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+        return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
 
 # Terminal loop orchestrator
 if __name__ == "__main__":
-    exocortex = IntegratedExocortex(DB_FILE)
+    hillock = IntegratedHillock(DB_FILE)
 
     # Render the System Status Dashboard on Startup [1]
-    print_system_dashboard(exocortex)
+    print_system_dashboard(hillock)
 
     while True:
         try:
@@ -460,7 +460,7 @@ if __name__ == "__main__":
             if not user_input:
                 continue
             if user_input.lower() in ["exit", "quit", "/exit", "/quit"]:
-                print("Safely shutting down local exocortex.")
+                print("Safely shutting down local hillock.")
                 break
 
             if user_input.startswith("/mode"):
@@ -468,23 +468,23 @@ if __name__ == "__main__":
                  if len(parts) == 2:
                       mode_name = parts[1].strip().upper()
                       if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
-                           exocortex.verbosity_mode = mode_name
-                           print(f"Exocortex [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
+                           hillock.verbosity_mode = mode_name
+                           print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
                       else:
-                           print("Exocortex [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
+                           print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
                  else:
-                      print("Exocortex [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
+                      print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
                  continue
 
             if user_input.strip() == "/reset":
-                 print("Exocortex [SYSTEM]: Initiating deliberate database reset...")
-                 exocortex.kg.clear_and_reinitialize()
-                 exocortex.hdc.state = np.zeros(exocortex.hdc.d, dtype=np.float64)
-                 exocortex.hdc.codebook.clear()
-                 exocortex.hdc.vocab_book.clear()
-                 for ent_id in exocortex.kg.get_all_entity_ids():
-                     exocortex.hdc.get_or_allocate_hypervector(ent_id)
-                 print("Exocortex [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
+                 print("Hillock [SYSTEM]: Initiating deliberate database reset...")
+                 hillock.kg.clear_and_reinitialize()
+                 hillock.hdc.state = np.zeros(hillock.hdc.d, dtype=np.float64)
+                 hillock.hdc.codebook.clear()
+                 hillock.hdc.vocab_book.clear()
+                 for ent_id in hillock.kg.get_all_entity_ids():
+                     hillock.hdc.get_or_allocate_hypervector(ent_id)
+                 print("Hillock [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
                  continue
 
             if user_input.startswith("/ingest"):
@@ -496,14 +496,14 @@ if __name__ == "__main__":
                         mode = parts[2].strip().lower()
 
                     fast_mode = (mode == "fast")
-                    print(f"Exocortex [SYSTEM]: Initiating bulk ingestion for '{filename}' (Mode: {mode.upper()})...")
-                    result = ingest_document_parallel(filename, exocortex)
-                    print(f"Exocortex [SYSTEM]: {result}")
+                    print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' (Mode: {mode.upper()})...")
+                    result = ingest_document_parallel(filename, hillock)
+                    print(f"Hillock [SYSTEM]: {result}")
                 else:
-                    print("Exocortex [SYSTEM]: Error. Correct format is: /ingest [filename.ext] [fast/thorough]")
+                    print("Hillock [SYSTEM]: Error. Correct format is: /ingest [filename.ext] [fast/thorough]")
                 continue
 
-            reply, primed, fingerprint, mode = exocortex.execute_chat_turn(user_input)
+            reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
             print(reply)
 
             if primed:
@@ -518,5 +518,5 @@ if __name__ == "__main__":
             print()
 
         except KeyboardInterrupt:
-            print("\nSafely shutting down local exocortex.")
+            print("\nSafely shutting down local hillock.")
             break

@@ -1,4 +1,4 @@
-"""SQLite Database module representing the decoupled fact storage [1]."""
+"""SQLite Database module representing the decoupled fact storage."""
 
 import sqlite3
 import re
@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional, Set
 from config import DB_FILE
 
 class SQLiteKnowledgeGraph:
-    """Manages the decoupled symbolic database (Filing Cabinet) [1]."""
+    """Manages the decoupled symbolic database (Filing Cabinet)."""
     def __init__(self, db_path: str = DB_FILE):
         self.db_path = db_path
         self._initialize_db()
@@ -73,7 +73,7 @@ class SQLiteKnowledgeGraph:
             conn.commit()
 
     def clear_and_reinitialize(self) -> None:
-        """Fixed (Problem 3): Safe SQL-level reset."""
+        """Safe SQL-level reset."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
@@ -85,21 +85,21 @@ class SQLiteKnowledgeGraph:
         self.seed_initial_knowledge()
 
     def get_entity_count(self) -> int:
-        """Queries the exact number of unique entities registered in SQL [1]."""
+        """Queries the exact number of unique entities registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM entities")
             return cursor.fetchone()[0]
 
     def get_relations_count(self) -> int:
-        """Queries the exact number of unique relational triples registered in SQL [1]."""
+        """Queries the exact number of unique relational triples registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM relations")
             return cursor.fetchone()[0]
 
     def get_synapse_count(self) -> int:
-        """Queries the exact number of active Hebbian synapses registered in SQL [1]."""
+        """Queries the exact number of active Hebbian synapses registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM hebbian_weights")

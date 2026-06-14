@@ -1,4 +1,4 @@
-"""Runs parallelized paragraph block extractions with real-time hardware monitoring [1]."""
+"""Runs parallelized paragraph block extractions with real-time hardware monitoring."""
 
 import os
 import re
@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Tuple, Set
 from config import BLOCK_SIZE, BLOCK_OVERLAP, MAX_WORKERS
 
-# Optional import for hardware resource tracking [1]
+# Optional import for hardware resource tracking
 try:
     import psutil
 except ImportError:
@@ -42,7 +42,7 @@ def get_clean_sentences(file_path: str, hillock) -> List[str]:
     return sentences
 
 def segment_into_overlapping_blocks(sentences: List[str], block_size: int = BLOCK_SIZE, overlap: int = BLOCK_OVERLAP) -> List[str]:
-    """Chunks sentence arrays into overlapping paragraph blocks [1]."""
+    """Chunks sentence arrays into overlapping paragraph blocks."""
     blocks = []
     i = 0
     while i < len(sentences):
@@ -90,7 +90,7 @@ def extract_relations_from_block(block_text: str, hillock) -> List[Dict[str, str
     return triples
 
 def ingest_document_parallel(file_path: str, hillock) -> str:
-    """Orchestrates high-speed, parallelized paragraph extraction with real-time logs and specs [1]."""
+    """Orchestrates high-speed, parallelized paragraph extraction with real-time logs and specs."""
     start_time = time.perf_counter()
 
     try:
