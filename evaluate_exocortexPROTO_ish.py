@@ -14,19 +14,19 @@ from main import IntegratedExocortex
 logging.basicConfig(level=logging.ERROR)
 
 def generate_test_assets():
-    """Auto-generates test files if they don't exist to ensure out-of-the-box execution."""
+    """Auto-generates tougher, more realistic test files if they don't exist to ensure out-of-the-box execution."""
+
+    # Complex, multi-clause facts with distractors and passive phrasing
     facts = (
-        "Marie Curie was born in Poland.\n"
-        "Alan Turing was born in London.\n"
-        "Albert Einstein was born in Germany.\n"
-        "Turing worked with Einstein.\n"
-        "Einstein worked with Curie.\n"
-        "Marie Curie discovered Radioactivity.\n"
-        "Alan Turing cracked the Enigma.\n"
+        "Marie Curie was a brilliant physicist who spent her early childhood years in Poland before migrating to France.\n"
+        "During her illustrious career, she discovered radioactivity and collaborated closely with Albert Einstein, who was born in Germany.\n"
+        "Einstein, famous for his theoretical work, also worked alongside the British computer scientist Alan Turing.\n"
+        "Turing was born in London and is famous for his work at Bletchley Park where he cracked the Enigma code.\n"
+        "Isaac Newton, a contemporary from another era, was born in Woolsthorpe, England, but did not work with Einstein.\n"
     )
 
     questions = [
-        # Answerable questions (True Positives / True Negatives)
+        # Answerable questions (Requires resolving complex phrasing and associations)
         {"question": "Where was Marie Curie born?", "expected_subject": "Marie_Curie", "expected_predicate": "born_in", "expected_object": "Poland", "answerable": True},
         {"question": "Where was Alan Turing born?", "expected_subject": "Alan_Turing", "expected_predicate": "born_in", "expected_object": "London", "answerable": True},
         {"question": "Where was Albert Einstein born?", "expected_subject": "Albert_Einstein", "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
@@ -34,20 +34,19 @@ def generate_test_assets():
         {"question": "What did Alan Turing crack?", "expected_subject": "Alan_Turing", "expected_predicate": "cracked", "expected_object": "Enigma", "answerable": True},
         {"question": "What did Marie Curie discover?", "expected_subject": "Marie_Curie", "expected_predicate": "discovered", "expected_object": "Radioactivity", "answerable": True},
 
-        # Unanswerable questions (To test safe gating)
+        # Unanswerable questions (Tricky context tests to evaluate hallucination gating)
         {"question": "Who is Turing?", "answerable": False},
-        {"question": "Where was Isaac Newton born?", "answerable": False},
-        {"question": "What did Albert Einstein discover?", "answerable": False},
+        {"question": "Where was Isaac Newton born?", "answerable": False}, # Not in SQLite seeds, testing ingestion extraction boundary
+        {"question": "What did Albert Einstein discover?", "answerable": False}, # Curie discovered radioactivity, Einstein didn't!
         {"question": "Who cracked Enigma?", "answerable": False}  # 'Enigma' is the target, not active subject
     ]
 
-    if not os.path.exists("eval_facts.txt"):
-        with open("eval_facts.txt", "w", encoding="utf-8") as f:
-            f.write(facts)
+    # Always write fresh files to ensure the tough benchmarks are used
+    with open("eval_facts.txt", "w", encoding="utf-8") as f:
+        f.write(facts)
 
-    if not os.path.exists("eval_questions.json"):
-        with open("eval_questions.json", "w", encoding="utf-8") as f:
-            json.dump(questions, f, indent=2)
+    with open("eval_questions.json", "w", encoding="utf-8") as f:
+        json.dump(questions, f, indent=2)
 
 def run_evaluation():
     db_file = "exocortex_eval.db"
@@ -75,7 +74,7 @@ def run_evaluation():
     print(f" -> {ingest_result}")
 
     # 3. EVALUATE EXTRACTION (Precision & Recall)
-    # Target relations in eval_facts.txt (Total: 7)
+    # Target relations in our upgraded eval_facts.txt (Total: 7)
     target_facts = {
         ("Marie_Curie", "born_in", "Poland"),
         ("Alan_Turing", "born_in", "London"),
@@ -127,7 +126,7 @@ def run_evaluation():
                 active_ents = exocortex.link_entities(q)
                 candidate_facts = exocortex.kg.get_all_facts_for_entities(active_ents)
 
-                # Fixed: Uses select_answering_facts list extraction [1]
+                # Fixed: Uses select_answering_facts list extraction
                 matched_list = exocortex.select_answering_facts(q, candidate_facts)
 
                 if matched_list:
