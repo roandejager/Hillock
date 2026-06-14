@@ -156,13 +156,22 @@ class IntegratedExocortex:
         except Exception:
             return None
 
-    def parse_json_safely(self, raw_text: str) -> Optional[dict]:
+    def parse_json_safely(self, raw_text: str) -> Optional[any]:
         try:
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
-            start = cleaned.find("{")
-            end = cleaned.rfind("}")
-            if start != -1 and end != -1:
-                return json.loads(cleaned[start:end+1])
+
+            # 1. Search for JSON array boundaries first
+            start_list = cleaned.find("[")
+            end_list = cleaned.rfind("]")
+
+            if start_list != -1 and end_list != -1:
+                return json.loads(cleaned[start_list:end_list + 1])
+
+            # 2. Fall back to object boundaries if no array exists
+            start_obj = cleaned.find("{")
+            end_obj = cleaned.rfind("}")
+            if start_obj != -1 and end_obj != -1:
+                return json.loads(cleaned[start_obj:end_obj + 1])
         except Exception:
             pass
         return None
