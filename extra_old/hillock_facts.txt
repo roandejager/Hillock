@@ -1,7 +1,0 @@
-Marie Curie was born in Poland.
-Alan Turing was born in London.
-Albert Einstein was born in Germany.
-Turing worked with Einstein.
-Einstein worked with Curie.
-Marie Curie discovered Radioactivity.
-Alan Turing cracked the Enigma.
