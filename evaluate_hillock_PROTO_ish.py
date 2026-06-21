@@ -90,7 +90,7 @@ def generate_test_assets():
         {"question": "What did Johannes Kepler discover in Italy?", "answerable": False} # Kepler was in Germany, Galileo was in Italy
     ]
 
-    # Force write fresh copies of the expanded files
+    # Force write fresh copies of the expanded files (safely in root directory)
     with open("eval_facts.txt", "w", encoding="utf-8") as f:
         f.write(facts)
 
@@ -124,7 +124,7 @@ def run_evaluation():
     print(f" -> {ingest_result}")
 
     # 3. EVALUATE EXTRACTION (Precision & Recall)
-    # Target relations in our upgraded long-form eval_facts.txt (Total: 20 targets)
+    # Target relations in our upgraded long-form eval_facts.txt (Total: 22 targets)
     target_facts = {
         ("Marie_Curie", "born_in", "Poland"),
         ("Alan_Turing", "born_in", "London"),

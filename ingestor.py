@@ -90,7 +90,7 @@ def extract_relations_from_block(block_text: str, hillock) -> List[Dict[str, str
     return triples
 
 def ingest_document_parallel(file_path: str, hillock) -> str:
-    """Orchestrates high-speed, parallelized paragraph extraction with real-time logs and specs."""
+    """Orchestrates high-speed paragraph extraction with real-time logs and specs."""
     start_time = time.perf_counter()
 
     try:
@@ -101,7 +101,12 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
     # Group sentences into paragraph blocks
     blocks = segment_into_overlapping_blocks(sentences)
     print(f"\nHillock [INGESTOR]: Chunked '{os.path.basename(file_path)}' ({len(sentences)} sentences) into {len(blocks)} blocks.")
-    print(f"Hillock [INGESTOR]: Spawning {MAX_WORKERS} parallel workers on your CPU cores...")
+
+    # Resolves parallel-framing contradiction by checking MAX_WORKERS setting
+    if MAX_WORKERS > 1:
+        print(f"Hillock [INGESTOR]: Spawning {MAX_WORKERS} parallel workers on your CPU cores...")
+    else:
+        print(f"Hillock [INGESTOR]: Running sequential ingestion (MAX_WORKERS = 1) to optimize local model caching...")
 
     extracted_relations = []
     completed_blocks = 0
