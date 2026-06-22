@@ -317,6 +317,26 @@ class IntegratedHillock:
             "object": resolved_b
         }
 
+    def extract_sentence_relations(self, sentence: str) -> Optional[Dict[str, str]]:
+        """
+        Processes a single sentence using the robust two-pass extraction system.
+        This prevents subject-predicate co-mingling during bulk ingestion.
+        """
+        # Trigger the secure two-pass extraction (Pass 1: Entities, Pass 2: Predicate)
+        fact = self.extract_factual_declaration_two_pass(sentence)
+        if fact:
+            sub = fact.get("subject")
+            pred = fact.get("predicate")
+            obj = fact.get("object")
+
+            if sub and pred and obj:
+                return {
+                    "subject": sub,
+                    "predicate": pred,
+                    "object": obj
+                }
+        return None
+
     def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[str, str]:
         priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
         fingerprint_str = ", ".join([f"{node} (match {sim:.2f})" for node, sim in hdc_fingerprint]) if hdc_fingerprint else "None"
