@@ -19,6 +19,17 @@ from ingestor import ingest_document_parallel
 logger = logging.getLogger("Hillock.Main")
 
 
+try:
+    import spacy
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except Exception:
+        nlp = None
+except Exception:
+    nlp = None
+
+
+
 def get_gpu_name() -> str:
     """Uses nvidia-smi utility to dynamically query local GPU model."""
     try:
@@ -277,7 +288,10 @@ class IntegratedHillock:
             "Extract ONLY the single verb or verb phrase that connects Entity A to Entity B in the sentence.\n"
             "Rules:\n"
             "1. Return ONLY the relationship verb, no nouns, subjects, or objects.\n"
-            f"2. Do NOT include '{resolved_a}' or '{resolved_b}' or any words from them in the predicate.\n"
+            "2. Fields required:\n"
+            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie')\n"
+            "   - 'predicate': string. YOU MUST CHOOSE EXACTLY ONE FROM THIS LIST: [born_in, collaborated_with, discovered, cracked, designed, developed, migrated_to, related_to]. Do not invent new predicates.\n"
+            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
             "Example JSON:\n"
             "{\n"
             "  \"predicate\": \"discovered\"\n"
@@ -465,6 +479,81 @@ class IntegratedHillock:
             return f"Hillock (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{norm_pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
 
         return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+
+    def extract_fact_spacy(self, sentence: str) -> Optional[Dict[str, str]]:
+        """
+        Ingestion Speed Upgrade: Classical NLP parsing via SpaCy.
+        Extracts facts in under 1ms on CPU, using strict NER and grammatical constraints.
+        """
+        global nlp
+        if nlp is None:
+            return None
+        try:
+            doc = nlp(sentence)
+
+            # Step 1: Run NER to extract entities
+            content_labels = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "FAC", "PRODUCT"}
+            raw_ents = [ent for ent in doc.ents if ent.label_ in content_labels]
+
+            # Step 2: Filter entities (exclude those with numbers, punctuation, or >40 chars)
+            def is_clean_entity(text: str) -> bool:
+                cleaned_text = text.strip()
+                if len(cleaned_text) > 40:
+                    return False
+                if re.search(r"[^\w\s-]", cleaned_text) or re.search(r"\d", cleaned_text):
+                    return False
+                return True
+
+            clean_ents = [ent for ent in raw_ents if is_clean_entity(ent.text)]
+
+            # If we don't have exactly 2 or 3 clean entities, fall back to LLM
+            if len(clean_ents) not in (2, 3):
+                return None
+
+            # Anchor the subject and object
+            ent_a = clean_ents[0].text
+            ent_b = clean_ents[1].text
+
+            # Step 3: Find the root verb or verb phrase connecting them
+            verb_token = None
+            for token in doc:
+                if token.dep_ == "ROOT":
+                    verb_token = token
+                    break
+
+            if not verb_token:
+                return None
+
+            predicate = verb_token.lemma_
+
+            # Handle auxiliary verbs ("was born" -> "born_in")
+            if verb_token.lemma_ in ("be", "have", "do"):
+                for child in verb_token.children:
+                    if child.dep_ in ("acomp", "xcomp", "attr", "prep", "pobj"):
+                        predicate = child.lemma_
+                        break
+                # Special check for born pattern
+                for token in doc:
+                    if token.lemma_ in ("born", "bear"):
+                        predicate = "born_in"
+                        break
+
+            # Normalize names using existing entity codes
+            sub_resolved = self.resolve_entity_identity(ent_a.replace(" ", "_"))
+            obj_resolved = self.resolve_entity_identity(ent_b.replace(" ", "_"))
+
+            # Guard against identity loops (subject == object)
+            if sub_resolved.lower() == obj_resolved.lower():
+                return None
+
+            return {
+                "subject": sub_resolved,
+                "predicate": predicate,
+                "object": obj_resolved
+            }
+        except Exception as e:
+            logger.error(f"SpaCy NER extraction failed: {e}")
+            return None
 
 
 # Terminal loop orchestrator

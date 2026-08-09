@@ -54,40 +54,62 @@ def segment_into_overlapping_blocks(sentences: List[str], block_size: int = BLOC
             break
     return blocks
 
+
 def extract_relations_from_block(block_text: str, hillock) -> List[Dict[str, str]]:
-    """Passes a paragraph block to the local LLM to extract all relational triples."""
-    system_prompt = (
-        "You are a precise, structural information extraction engine. Output ONLY a JSON array.\n"
-        "Analyze the provided text block and extract all clear factual relationships between prominent entities.\n\n"
-        "Rules:\n"
-        "1. Output ONLY a valid JSON list of objects, do not include any other conversational filler.\n"
-        "2. Fields required:\n"
-        "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie' or 'Alan_Turing')\n"
-        "   - 'predicate': string (relationship verb, e.g. 'born_in', 'collaborated_with', 'discovered', 'cracked')\n"
-        "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-        "3. Extract as many valid connections as are explicitly supported by the text. Multiple connections per block are expected.\n"
-        "4. Be extremely careful with subject-predicate association. Only extract a relationship if the subject "
-        "explicitly performed the action described by the predicate in the text. "
-        "Do not attribute actions to adjacent entities mentioned in other sentences.\n"
-        "5. If no clear relationships exist, return an empty array [].\n"
-    )
+    """
+    Hybrid Ingestion: Routes sentences through a 1ms SpaCy fast-path first.
+    Any unparsed, complex sentences are bundled and sent to Ollama in a single pass.
+    """
+    # 1. Segment the block text into individual sentences
+    sentences = [s.strip() for s in re.split(r"[.!?]", block_text) if s.strip()]
 
-    response = hillock.query_ollama(block_text, system_prompt)
-    if not response:
-        return []
-
-    extracted_triples = hillock.parse_json_safely(response)
-    if isinstance(extracted_triples, list):
-        return extracted_triples
-
-    # Regex fallback if JSON parsing fails on small models
     triples = []
-    try:
-        matches = re.findall(r"\{\s*\"subject\"\s*:\s*\"([^\"]+)\"\s*,\s*\"predicate\"\s*:\s*\"([^\"]+)\"\s*,\s*\"object\"\s*:\s*\"([^\"]+)\"\s*\}", response)
-        for sub, pred, obj in matches:
-            triples.append({"subject": sub, "predicate": pred, "object": obj})
-    except Exception:
-        pass
+    unparsed_sentences = []
+
+    # 2. Try the 1ms SpaCy Fast-Path on each sentence first
+    for sentence in sentences:
+        fact = hillock.extract_fact_spacy(sentence)
+        if fact:
+            triples.append(fact)
+        else:
+            # Sentence is too complex or lacks named entities; save for LLM pass
+            unparsed_sentences.append(sentence)
+
+    # 3. If there are remaining unparsed sentences, send them to Qwen 3 in one pass
+    if unparsed_sentences:
+        remaining_text = " ".join(unparsed_sentences)
+
+        system_prompt = (
+            "You are a precise, structural information extraction engine. Output ONLY a JSON array.\n"
+            "Analyze the provided text block and extract all clear factual relationships between prominent entities.\n\n"
+            "Rules:\n"
+            "1. Output ONLY a valid JSON list of objects, do not include any other conversational filler.\n"
+            "2. Fields required:\n"
+            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie')\n"
+            "   - 'predicate': string. YOU MUST CHOOSE EXACTLY ONE FROM THIS LIST: [born_in, collaborated_with, discovered, cracked, designed, developed, migrated_to, related_to]. Do not invent new predicates.\n"
+            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
+            "3. Extract as many valid connections as are explicitly supported by the text. Multiple connections per block are expected.\n"
+            "4. Be extremely careful with subject-predicate association. Only extract a relationship if the subject "
+            "explicitly performed the action described by the predicate in the text. Do not attribute actions to adjacent entities mentioned in other sentences.\n"
+            "5. If no clear relationships exist, return an empty array [].\n"
+        )
+
+        response = hillock.query_ollama(remaining_text, system_prompt)
+        if response:
+            extracted_triples = hillock.parse_json_safely(response)
+            if isinstance(extracted_triples, list):
+                triples.extend(extracted_triples)
+            else:
+                # Regex fallback if JSON parsing fails
+                try:
+                    matches = re.findall(
+                        r"\{\s*\"subject\"\s*:\s*\"([^\"]+)\"\s*,\s*\"predicate\"\s*:\s*\"([^\"]+)\"\s*,\s*\"object\"\s*:\s*\"([^\"]+)\"\s*\}",
+                        response)
+                    for sub, pred, obj in matches:
+                        triples.append({"subject": sub, "predicate": pred, "object": obj})
+                except Exception:
+                    pass
+
     return triples
 
 def ingest_document_parallel(file_path: str, hillock) -> str:
