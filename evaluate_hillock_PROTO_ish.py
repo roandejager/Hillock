@@ -119,9 +119,15 @@ def run_evaluation():
 
     # 2. RUN AUTONOMOUS INGESTION
     print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt'...")
+
+    hillock.ollama_model = "qwen2:1.5b"
+
     from ingestor import ingest_document_parallel
     ingest_result = ingest_document_parallel("eval_facts.txt", hillock)
     print(f" -> {ingest_result}")
+
+    hillock.ollama_model = "qwen3:latest"
+
 
     # 3. EVALUATE EXTRACTION (Precision & Recall)
     # Target relations in our upgraded long-form eval_facts.txt (Total: 22 targets)
