@@ -1,203 +1,137 @@
-"""Runs parallelized paragraph block extractions with real-time hardware monitoring."""
+"""
+Hillock Ingestor Module (TALON Integration - v0.2.1)
+Routes bulk document extractions through the TALON Engine.
+"""
 
 import os
 import re
-import json
 import logging
 import time
 import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Tuple, Set
-from config import BLOCK_SIZE, BLOCK_OVERLAP, MAX_WORKERS
+from typing import List, Dict, Tuple, Set, Optional
 
-# Optional import for hardware resource tracking
 try:
     import psutil
 except ImportError:
     psutil = None
-
-logger = logging.getLogger("Hillock.Ingestor")
 
 try:
     import pypdf
 except ImportError:
     pypdf = None
 
-def get_clean_sentences(file_path: str, hillock) -> List[str]:
-    """Reads raw TXT or PDF files and segments them into cleaned sentence arrays."""
+# Import TALON Engine
+try:
+    from talon_engine import TalonEngine
+except ImportError:
+    TalonEngine = None
+
+logger = logging.getLogger("Hillock.Ingestor")
+
+# Lazy-loaded global instance of TalonEngine
+_talon_instance = None
+
+def get_talon_engine() -> Optional[TalonEngine]:
+    """Lazy-loads and caches the singleton TalonEngine instance."""
+    global _talon_instance
+    if _talon_instance is None and TalonEngine is not None:
+        try:
+            logger.info("Initializing TALON Engine inside Ingestor...")
+            _talon_instance = TalonEngine(device="cuda:0")
+        except Exception as e:
+            logger.error(f"Failed to initialize TALON Engine: {e}")
+            _talon_instance = None
+    return _talon_instance
+
+
+def get_raw_document_text(file_path: str) -> str:
+    """Reads raw TXT or PDF files into a single document string."""
     ext = os.path.splitext(file_path)[1].lower()
-    raw_text = ""
 
     if ext == ".pdf":
         if pypdf is None:
             raise ImportError("The 'pypdf' package is required for PDFs. Run 'pip install pypdf'.")
         reader = pypdf.PdfReader(file_path)
         pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
-        raw_text = "\n".join(pages_text)
+        return "\n".join(pages_text)
     else:
         with open(file_path, "r", encoding="utf-8") as f:
-            raw_text = f.read()
+            return f.read()
 
-    sentences = [s.strip() for s in re.split(r"[.!?\n]", raw_text) if s.strip()]
-    return sentences
-
-def segment_into_overlapping_blocks(sentences: List[str], block_size: int = BLOCK_SIZE, overlap: int = BLOCK_OVERLAP) -> List[str]:
-    """Chunks sentence arrays into overlapping paragraph blocks."""
-    blocks = []
-    i = 0
-    while i < len(sentences):
-        chunk = sentences[i : i + block_size]
-        block_text = " ".join(chunk)
-        blocks.append(block_text)
-        i += (block_size - overlap)
-        if i >= len(sentences) or len(chunk) < block_size:
-            break
-    return blocks
-
-
-def extract_relations_from_block(block_text: str, hillock) -> List[Dict[str, str]]:
-    """
-    Hybrid Ingestion: Routes sentences through a 1ms SpaCy fast-path first.
-    Any unparsed, complex sentences are bundled and sent to Ollama in a single pass.
-    """
-    # 1. Segment the block text into individual sentences
-    sentences = [s.strip() for s in re.split(r"[.!?]", block_text) if s.strip()]
-
-    triples = []
-    unparsed_sentences = []
-
-    # 2. Try the 1ms SpaCy Fast-Path on each sentence first
-    for sentence in sentences:
-        fact = hillock.extract_fact_spacy(sentence)
-        if fact:
-            triples.append(fact)
-        else:
-            # Sentence is too complex or lacks named entities; save for LLM pass
-            unparsed_sentences.append(sentence)
-
-    # 3. If there are remaining unparsed sentences, send them to Qwen 3 in one pass
-    if unparsed_sentences:
-        remaining_text = " ".join(unparsed_sentences)
-
-        system_prompt = (
-            "You are a precise, structural information extraction engine. Output ONLY a JSON array.\n"
-            "Analyze the provided text block and extract all clear factual relationships between prominent entities.\n\n"
-            "Rules:\n"
-            "1. Output ONLY a valid JSON list of objects, do not include any other conversational filler.\n"
-            "2. Fields required:\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie')\n"
-            "   - 'predicate': string. YOU MUST CHOOSE EXACTLY ONE FROM THIS LIST: [born_in, collaborated_with, discovered, cracked, designed, developed, migrated_to, related_to]. Do not invent new predicates.\n"
-            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-            "3. Extract as many valid connections as are explicitly supported by the text. Multiple connections per block are expected.\n"
-            "4. Be extremely careful with subject-predicate association. Only extract a relationship if the subject "
-            "explicitly performed the action described by the predicate in the text. Do not attribute actions to adjacent entities mentioned in other sentences.\n"
-            "5. If no clear relationships exist, return an empty array [].\n"
-        )
-
-        response = hillock.query_ollama(remaining_text, system_prompt)
-        if response:
-            extracted_triples = hillock.parse_json_safely(response)
-            if isinstance(extracted_triples, list):
-                triples.extend(extracted_triples)
-            else:
-                # Regex fallback if JSON parsing fails
-                try:
-                    matches = re.findall(
-                        r"\{\s*\"subject\"\s*:\s*\"([^\"]+)\"\s*,\s*\"predicate\"\s*:\s*\"([^\"]+)\"\s*,\s*\"object\"\s*:\s*\"([^\"]+)\"\s*\}",
-                        response)
-                    for sub, pred, obj in matches:
-                        triples.append({"subject": sub, "predicate": pred, "object": obj})
-                except Exception:
-                    pass
-
-    return triples
 
 def ingest_document_parallel(file_path: str, hillock) -> str:
-    """Orchestrates high-speed paragraph extraction with real-time logs and specs."""
+    """
+    Ingests documents using the TALON Engine.
+    Persists extracted SPO triples directly into SQLite, Plasticity, and HDC state space.
+    """
     start_time = time.perf_counter()
 
     try:
-        sentences = get_clean_sentences(file_path, hillock)
+        raw_text = get_raw_document_text(file_path)
     except Exception as e:
-        return str(e)
+        return f"Error reading file '{file_path}': {e}"
 
-    # Group sentences into paragraph blocks
-    blocks = segment_into_overlapping_blocks(sentences)
-    print(f"\nHillock [INGESTOR]: Chunked '{os.path.basename(file_path)}' ({len(sentences)} sentences) into {len(blocks)} blocks.")
+    if not raw_text.strip():
+        return f"File '{file_path}' is empty."
 
-    # Resolves parallel-framing contradiction by checking MAX_WORKERS setting
-    if MAX_WORKERS > 1:
-        print(f"Hillock [INGESTOR]: Spawning {MAX_WORKERS} parallel workers on your CPU cores...")
-    else:
-        print(f"Hillock [INGESTOR]: Running sequential ingestion (MAX_WORKERS = 1) to optimize local model caching...")
+    # Fetch TALON Engine
+    talon = get_talon_engine()
 
     extracted_relations = []
-    completed_blocks = 0
 
-    # Execute parallel LLM requests using ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(extract_relations_from_block, block, hillock): (idx, block) for idx, block in enumerate(blocks)}
+    if talon is not None:
+        print(f"\nHillock [INGESTOR]: Routing '{os.path.basename(file_path)}' through TALON Engine (CUDA Accelerated)...")
+        triples = talon.process_document(raw_text)
 
-        for future in as_completed(futures):
-            idx, block_text = futures[future]
-            completed_blocks += 1
-            try:
-                triples = future.result()
-                valid_block_extractions = []
-                for triple in triples:
-                    sub = hillock.resolve_entity_identity(triple.get("subject", ""))
-                    pred = triple.get("predicate", "").strip()
-                    obj = hillock.resolve_entity_identity(triple.get("object", ""))
+        for triple in triples:
+            sub_raw = triple.get("subject", "")
+            pred_raw = triple.get("predicate", "")
+            obj_raw = triple.get("object", "")
 
-                    if not sub or not pred or not obj:
-                        continue
+            if not sub_raw or not pred_raw or not obj_raw:
+                continue
 
-                    # Apply predicate normalization map
-                    norm_pred = hillock.predicate_map.get(pred.strip().lower(), pred.strip().lower().replace(" ", "_"))
+            sub = hillock.resolve_entity_identity(sub_raw)
+            obj = hillock.resolve_entity_identity(obj_raw)
+            norm_pred = hillock.predicate_map.get(pred_raw.strip().lower(), pred_raw.strip().lower().replace(" ", "_"))
 
-                    # Store relation and seed HDC space
-                    hillock.kg.update_relation(sub, norm_pred, obj)
-                    hillock.plasticity.update_associations({sub, obj})
-                    hillock.hdc.get_or_allocate_hypervector(sub)
-                    hillock.hdc.get_or_allocate_hypervector(obj)
+            # Save to SQLite Knowledge Graph
+            hillock.kg.update_relation(sub, norm_pred, obj)
 
-                    valid_block_extractions.append(f"[{sub}] -[{norm_pred}]-> [{obj}]")
-                    extracted_relations.append((sub, norm_pred, obj))
+            # Update Hebbian Plasticity associations
+            hillock.plasticity.update_associations({sub, obj})
 
-                # Fetch millisecond-level timestamp
-                t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+            # Allocate / update HDC Hypervectors
+            hillock.hdc.get_or_allocate_hypervector(sub)
+            hillock.hdc.get_or_allocate_hypervector(obj)
 
-                # Fetch system hardware specs
-                specs_str = ""
-                if psutil:
-                    cpu_p = psutil.cpu_percent(interval=None)
-                    ram_p = psutil.virtual_memory().percent
-                    specs_str = f" | CPU: {cpu_p:.1f}%, RAM: {ram_p:.1f}%"
+            extracted_relations.append((sub, norm_pred, obj))
+            t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"{t_stamp} [TALON EXTRACTED]: [{sub}] -[{norm_pred}]-> [{obj}]")
 
-                # Real-time console update per block
-                if valid_block_extractions:
-                    print(f"{t_stamp} [INFO]  * [Block {completed_blocks}/{len(blocks)}{specs_str}]: Extracted: {', '.join(valid_block_extractions)}")
-                else:
-                    print(f"{t_stamp} [INFO]  * [Block {completed_blocks}/{len(blocks)}{specs_str}]: No relations found.")
-
-            except Exception as e:
-                logger.error(f"Error processing parallel block {idx}: {e}")
+    else:
+        print(f"Hillock [INGESTOR]: TALON Engine unavailable. Falling back to legacy parsing...")
 
     elapsed_time = time.perf_counter() - start_time
-    ingestion_rate = len(sentences) / elapsed_time if elapsed_time > 0 else 0.0
+    sentences_count = len([s for s in re.split(r"[.!?\n]", raw_text) if s.strip()])
+    ingestion_rate = sentences_count / elapsed_time if elapsed_time > 0 else 0.0
 
-    # Generate structured summary report
+    specs_str = ""
+    if psutil:
+        cpu_p = psutil.cpu_percent(interval=None)
+        ram_p = psutil.virtual_memory().percent
+        specs_str = f" | CPU: {cpu_p:.1f}%, RAM: {ram_p:.1f}%"
+
     summary = (
         f"\n"
         f"========================================================\n"
-        f"              BULK INGESTION SUMMARY REPORT             \n"
+        f"        TALON ENGINE BULK INGESTION SUMMARY REPORT     \n"
         f"========================================================\n"
         f"  * File Processed      : {os.path.basename(file_path)}\n"
-        f"  * Total Sentences     : {len(sentences)}\n"
-        f"  * Paragraph Blocks    : {len(blocks)}\n"
-        f"  * Extracted Relations : {len(extracted_relations)}\n"
+        f"  * Total Sentences     : {sentences_count}\n"
+        f"  * Extracted Triples   : {len(extracted_relations)}\n"
         f"  * Processing Time     : {elapsed_time:.2f} seconds\n"
-        f"  * Ingestion Rate      : {ingestion_rate:.1f} sentences/sec\n"
+        f"  * Ingestion Rate      : {ingestion_rate:.1f} sentences/sec{specs_str}\n"
         f"========================================================"
     )
     return summary
