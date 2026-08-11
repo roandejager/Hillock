@@ -1,6 +1,6 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Complete Ingestion Engine (Stages 1, 2, & 3 Integrated)
+Engine Module - v0.2.2 Quality & Entity Canonicalization Patch
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
@@ -85,6 +85,25 @@ DEFAULT_PREDICATE_TAXONOMY = [
     "influenced_by", "student_of", "teacher_of", "successor_to", "predecessor_to",
     "migrated_to", "moved_to", "resided_in", "patented", "manufactured", "operated_by"
 ]
+
+
+def clean_entity_text(text: str) -> str:
+    """Strips trailing punctuation, verbs, prepositions, and stopwords from entity spans."""
+    text = re.sub(r"[^\w\s-]", "", text).strip()
+    words = text.split()
+    stop_words = {
+        "was", "is", "were", "are", "worked", "discovered", "colleague", "illustrious",
+        "early", "theoretical", "critical", "analyzed", "work", "cracked", "designed",
+        "developed", "born", "in", "at", "by", "of", "a", "an", "the", "and", "where", "while"
+    }
+
+    while words and words[0].lower() in stop_words:
+        words.pop(0)
+    while words and words[-1].lower() in stop_words:
+        words.pop(-1)
+
+    cleaned = " ".join(words).strip()
+    return cleaned
 
 
 class CoreferenceResolver:
@@ -224,7 +243,7 @@ class ZeroShotRelationExtractor:
             logger.error(f"Failed to load GLiREL model: {e}")
             return False
 
-    def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.15) -> List[Dict[str, str]]:
+    def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.42) -> List[Dict[str, str]]:
         if self.model is None:
             if not self.load_model():
                 return []
@@ -238,19 +257,25 @@ class ZeroShotRelationExtractor:
             doc = nlp(sentence)
             tokens = [token.text for token in doc]
 
-            # 1. Extract NER entity spans from spaCy
-            ner = [[ent.start, ent.end, ent.label_, ent.text] for ent in doc.ents]
+            # 1. Extract clean NER entity spans from spaCy
+            ner = []
+            for ent in doc.ents:
+                clean_name = clean_entity_text(ent.text)
+                if clean_name and len(clean_name) > 1:
+                    ner.append([ent.start, ent.end, ent.label_, clean_name])
 
-            # 2. Fallback to noun chunks if sentence lacks formal named entities
+            # 2. Fallback to clean noun chunks if sentence lacks formal named entities
             if len(ner) < 2:
                 ner = []
                 for chunk in doc.noun_chunks:
-                    ner.append([chunk.start, chunk.end, "ENTITY", chunk.text])
+                    clean_chunk = clean_entity_text(chunk.text)
+                    if clean_chunk and len(clean_chunk) > 1:
+                        ner.append([chunk.start, chunk.end, "ENTITY", clean_chunk])
 
             if len(ner) < 2:
                 return []
 
-            # 3. Predict relations via GLiREL zero-shot matrix scoring
+            # 3. Predict relations via GLiREL zero-shot matrix scoring (Calibrated Threshold: 0.42)
             results = self.model.predict_relations(
                 tokens,
                 candidate_labels,
@@ -260,19 +285,26 @@ class ZeroShotRelationExtractor:
             )
 
             extracted_triples = []
+            seen_pairs = set()
+
             for item in results:
                 head_raw = item.get("head_text", "")
                 tail_raw = item.get("tail_text", "")
 
                 head_text = " ".join(head_raw) if isinstance(head_raw, list) else str(head_raw)
                 tail_text = " ".join(tail_raw) if isinstance(tail_raw, list) else str(tail_raw)
+
+                clean_head = clean_entity_text(head_text)
+                clean_tail = clean_entity_text(tail_text)
                 label = item.get("label", "").replace(" ", "_")
 
-                if head_text and tail_text and label:
+                pair_key = (clean_head.lower(), label.lower(), clean_tail.lower())
+                if clean_head and clean_tail and label and (clean_head.lower() != clean_tail.lower()) and pair_key not in seen_pairs:
+                    seen_pairs.add(pair_key)
                     extracted_triples.append({
-                        "subject": head_text,
+                        "subject": clean_head,
                         "predicate": label,
-                        "object": tail_text
+                        "object": clean_tail
                     })
 
             return extracted_triples
