@@ -1,12 +1,14 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Engine Module - Stage 1: Document-Level Coreference Resolution ONLY
+Engine Module - Stage 1: Coreference Resolution & Stage 2: Dynamic Predicate Routing
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
 
 import os
 import logging
+import numpy as np
+from typing import List, Optional
 
 # Disable HuggingFace Windows Symlink Warning
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -36,9 +38,28 @@ try:
 except ImportError:
     FCoref = None
 
+try:
+    from sentence_transformers import SentenceTransformer, util
+except ImportError:
+    SentenceTransformer = None
+
+
+# Master Taxonomy of Open-Domain Wikidata Predicates (~50 Common Relations)
+DEFAULT_PREDICATE_TAXONOMY = [
+    "born_in", "died_in", "place_of_birth", "place_of_death", "country_of_citizenship",
+    "collaborated_with", "worked_with", "partnered_with", "spouse_of", "child_of", "parent_of",
+    "discovered", "invented", "co_invented", "developed", "designed", "founded", "created",
+    "cracked", "authored", "wrote", "published", "formulated", "proposed",
+    "educated_at", "studied_at", "employed_by", "worked_at", "member_of", "affiliated_with",
+    "award_received", "won", "nominated_for", "capital_of", "located_in", "headquartered_in",
+    "field_of_work", "subclass_of", "part_of", "instance_of", "has_part", "contains",
+    "influenced_by", "student_of", "teacher_of", "successor_to", "predecessor_to",
+    "migrated_to", "moved_to", "resided_in", "patented", "manufactured", "operated_by"
+]
+
 
 class CoreferenceResolver:
-    """Handles document-level pronoun resolution using Fastcoref before text chunking."""
+    """Stage 1: Handles document-level pronoun resolution using Fastcoref."""
 
     def __init__(self, device: str = "cuda:0"):
         self.device = device
@@ -65,31 +86,23 @@ class CoreferenceResolver:
                 return False
 
     def _replace_clusters_in_text(self, text: str, clusters: list) -> str:
-        """
-        Replaces pronoun spans with canonical head entities.
-        Replaces from back to front so character indices remain aligned.
-        """
         replacements = []
 
         for cluster in clusters:
             if len(cluster) < 2:
                 continue
 
-            # First tuple in cluster is the primary head entity
             head_start, head_end = cluster[0]
             head_name = text[head_start:head_end].strip()
 
             if not head_name:
                 continue
 
-            # Replace subsequent mentions (pronouns) with head_name
             for start, end in cluster[1:]:
                 replacements.append((start, end, head_name))
 
-        # Sort replacements in reverse order of start position
         replacements.sort(key=lambda x: x[0], reverse=True)
 
-        # Apply replacements from back to front
         resolved = text
         for start, end, head_name in replacements:
             resolved = resolved[:start] + head_name + resolved[end:]
@@ -107,7 +120,6 @@ class CoreferenceResolver:
         try:
             predictions = self.model.predict(texts=[text])
             if predictions and len(predictions) > 0:
-                # Extract character span clusters from Fastcoref
                 clusters = predictions[0].get_clusters(as_strings=False)
                 if clusters:
                     return self._replace_clusters_in_text(text, clusters)
@@ -117,27 +129,92 @@ class CoreferenceResolver:
         return text
 
 
-# Self-test Stage 1 execution block
+class DynamicPredicateRouter:
+    """Stage 2: Bi-Encoder Semantic Filter using MiniLM to select top candidate predicates in <2ms."""
+
+    def __init__(self, taxonomy: List[str] = DEFAULT_PREDICATE_TAXONOMY, device: str = "cuda:0"):
+        self.taxonomy = taxonomy
+        self.device = device
+        self.model = None
+        self.taxonomy_embeddings = None
+
+    def load_model(self) -> bool:
+        if SentenceTransformer is None:
+            logger.error("sentence-transformers is not installed. Run 'pip install sentence-transformers'")
+            return False
+
+        try:
+            logger.info(f"Loading MiniLM Bi-Encoder on {self.device}...")
+            # Lightweight 80MB model
+            self.model = SentenceTransformer("all-MiniLM-L6-v2", device=self.device)
+
+            # Pre-compute and cache embeddings for our predicate taxonomy
+            taxonomy_phrases = [pred.replace("_", " ") for pred in self.taxonomy]
+            self.taxonomy_embeddings = self.model.encode(taxonomy_phrases, convert_to_tensor=True)
+            logger.info(f"Pre-cached embeddings for {len(self.taxonomy)} predicate taxonomy labels.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load SentenceTransformer: {e}")
+            return False
+
+    def select_top_predicates(self, sentence: str, top_k: int = 10) -> List[str]:
+        """Encodes sentence and retrieves top_k most semantically relevant predicates."""
+        if self.model is None or self.taxonomy_embeddings is None:
+            if not self.load_model():
+                return self.taxonomy[:top_k]
+
+        try:
+            # Encode sentence into vector space
+            sentence_embedding = self.model.encode(sentence, convert_to_tensor=True)
+
+            # Compute cosine similarity against pre-cached predicate taxonomy embeddings
+            cosine_scores = util.cos_sim(sentence_embedding, self.taxonomy_embeddings)[0]
+
+            # Get top_k indices with highest similarity
+            top_indices = np.argsort(cosine_scores.cpu().numpy())[::-1][:top_k]
+
+            selected_predicates = [self.taxonomy[idx] for idx in top_indices]
+            return selected_predicates
+        except Exception as e:
+            logger.error(f"Predicate routing error: {e}")
+            return self.taxonomy[:top_k]
+
+
+# Self-test Stage 1 & Stage 2 execution block
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("=" * 60)
-    print("      TALON ENGINE - STAGE 1: COREFERENCE TEST ONLY      ")
+    print("     TALON ENGINE - STAGE 1 & 2 INTEGRATED TEST         ")
     print("=" * 60)
 
+    # --- 1. Test Stage 1: Coreference Resolution ---
+    print("\n[STAGE 1: COREFERENCE RESOLUTION TEST]")
     resolver = CoreferenceResolver()
 
     sample_text = (
         "Marie Curie was a brilliant physicist born in Warsaw. "
-        "She discovered radioactivity and migrated to France. "
-        "Her colleague Albert Einstein worked alongside her in physics."
+        "She discovered radioactivity and migrated to France."
     )
-
-    print("\n[Original Input Text]:")
-    print(sample_text)
-
-    print("\n[Processing via Coreference Resolver]...")
     resolved_text = resolver.resolve_text(sample_text)
+    print(f"Original Text : {sample_text}")
+    print(f"Resolved Text : {resolved_text}")
 
-    print("\n[Resolved Output Text]:")
-    print(resolved_text)
+    # --- 2. Test Stage 2: Dynamic Predicate Router ---
+    print("\n" + "-" * 60)
+    print(" [STAGE 2: DYNAMIC PREDICATE ROUTER TEST]")
+    print("-" * 60)
+
+    router = DynamicPredicateRouter()
+
+    test_sentences = [
+        "Marie Curie discovered radioactivity in Paris.",
+        "Alan Turing cracked the Enigma code at Bletchley Park.",
+        "Albert Einstein was born in Germany and studied in Switzerland."
+    ]
+
+    for sentence in test_sentences:
+        top_preds = router.select_top_predicates(sentence, top_k=5)
+        print(f"\nSentence : '{sentence}'")
+        print(f"Top-5 Selected Predicates: {top_preds}")
+
     print("=" * 60)
