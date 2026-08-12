@@ -20,9 +20,13 @@ class HyperdimensionalReservoir:
         return book[name_id]
 
     def step(self, token_hv: np.ndarray, decay: float = HDC_DECAY) -> np.ndarray:
-        """Correct leaky reservoir update."""
+        """
+        Correct leaky reservoir update rule.
+        Adds token_hv directly to ensure zero-initialized state leaves 0.
+        """
         bound_token = np.roll(self.state, shift=1) * token_hv
-        self.state = (decay * self.state) + bound_token
+        # Fixed v0.2.3: Added + token_hv to allow non-zero state trajectory
+        self.state = (decay * self.state) + token_hv.astype(np.float64) + bound_token
         return self.state
 
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:

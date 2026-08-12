@@ -198,22 +198,26 @@ class IntegratedHillock:
             return []
 
         query_tokens = set(re.sub(r"[^\w\s]", "", query).lower().split())
-        query_hv = np.zeros(self.hdc.d, dtype=np.int32)
 
+        # Fixed v0.2.3: Extract normalized query components to prevent query length distortion
+        query_components = set()
         for token in query_tokens:
             resolved = self.resolve_entity_identity(token)
-            if resolved in self.hdc.codebook:
-                query_hv += self.hdc.get_or_allocate_hypervector(resolved, is_vocab_token=False)
+            if len(token) > 2 or resolved in self.hdc.codebook:
+                query_components.add(resolved)
+
+        query_hv = np.zeros(self.hdc.d, dtype=np.int32)
+        for comp in query_components:
+            if comp in self.hdc.codebook:
+                query_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=False)
             else:
-                query_hv += self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
+                query_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True)
 
         scored_facts = []
         for s, p, o in facts:
-            # Resolve subject and object identities
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            # Extract keywords for query overlap
             pred_keywords = [p.lower().replace("_", " ")]
             if p in ["collaborated_with", "work"]:
                 pred_keywords.extend(["work", "worked", "with", "partner", "collaborated"])
@@ -224,14 +228,12 @@ class IntegratedHillock:
             elif p in ["cracked", "crack"]:
                 pred_keywords.extend(["crack", "cracked", "broke"])
 
-            # Dynamically select the single best-matching predicate word
             best_pred_word = p.lower()
             for kw in pred_keywords:
                 if kw in query_tokens:
                     best_pred_word = kw
                     break
 
-            # Strictly 3 vector components ensures perfectly balanced norms across all facts
             components = [s_resolved, o_resolved, best_pred_word]
 
             fact_hv = np.zeros(self.hdc.d, dtype=np.int32)

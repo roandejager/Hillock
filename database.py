@@ -14,7 +14,7 @@ class SQLiteKnowledgeGraph:
     def _initialize_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")  # Enforce integrity constraints
+            cursor.execute("PRAGMA foreign_keys = ON;")
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS entities (
                     id TEXT PRIMARY KEY,
@@ -85,21 +85,18 @@ class SQLiteKnowledgeGraph:
         self.seed_initial_knowledge()
 
     def get_entity_count(self) -> int:
-        """Queries the exact number of unique entities registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM entities")
             return cursor.fetchone()[0]
 
     def get_relations_count(self) -> int:
-        """Queries the exact number of unique relational triples registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM relations")
             return cursor.fetchone()[0]
 
     def get_synapse_count(self) -> int:
-        """Queries the exact number of active Hebbian synapses registered in SQL."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM hebbian_weights")
@@ -110,12 +107,19 @@ class SQLiteKnowledgeGraph:
         src_key = source_id.strip().replace(" ", "_")
         tgt_key = new_target_id.strip().replace(" ", "_")
 
+        # Functional predicates that can only have one single target value
+        SINGLE_VALUED_PREDICATES = {"born_in", "died_in", "capital_of", "place_of_birth", "place_of_death"}
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
             cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
             cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
-            cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+
+            # Fixed v0.2.3: Only delete single-valued functional relations; allow multi-valued relations (like collaborated_with)
+            if predicate in SINGLE_VALUED_PREDICATES:
+                cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+
             cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
             conn.commit()
 
