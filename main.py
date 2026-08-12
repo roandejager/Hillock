@@ -1,7 +1,8 @@
-"""The main execution orchestrator for the conversational chat console."""
+"""The main execution orchestrator for the conversational chat console (v0.3 - SimHash VSA)."""
 
 import os
 import re
+import json
 import numpy as np
 import logging
 import platform
@@ -13,7 +14,7 @@ from typing import List, Tuple, Set, Optional, Dict
 from config import DB_FILE, OLLAMA_MODEL, HDC_THRESHOLD, MAX_WORKERS
 from database import SQLiteKnowledgeGraph
 from plasticity import HebbianPlasticityEngine
-from reservoir import HyperdimensionalReservoir
+from reservoir import HyperdimensionalReservoir, load_lightweight_glove
 from ingestor import ingest_document_parallel
 
 logger = logging.getLogger("Hillock.Main")
@@ -27,7 +28,6 @@ try:
         nlp = None
 except Exception:
     nlp = None
-
 
 
 def get_gpu_name() -> str:
@@ -70,9 +70,9 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     print(f"  * Synapses       : {synapses} active Hebbian connections")
     print("-"*60)
     print(" [BUILT-IN COMMAND REFERENCE] (Pillar 1)")
-    print("  * /ingest [file] [fast/thorough] : Index TXT/PDF files locally")
+    print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
     print("  * /mode [strict/balanced/convers] : Switch active AI personalities")
-    print("  * /reset                         : Clear and re-seed database")
+    print("  * /reset                         : Clear and re-seed database & HDC space")
     print("  * exit / quit                    : Safely terminate session")
     print("="*60 + "\n")
 
@@ -82,7 +82,11 @@ class IntegratedHillock:
         self.kg = SQLiteKnowledgeGraph(db_path)
         self.kg.seed_initial_knowledge()
         self.plasticity = HebbianPlasticityEngine(db_path)
-        self.hdc = HyperdimensionalReservoir()
+
+        # Load lightweight 10MB GloVe dictionary for continuous SimHash VSA (v0.3)
+        self.glove_dict = load_lightweight_glove()
+        self.hdc = HyperdimensionalReservoir(glove_dict=self.glove_dict)
+
         self.ollama_model = ollama_model
         self.verbosity_mode = "BALANCED"  # Options: STRICT, BALANCED, CONVERSATIONAL
 
@@ -96,7 +100,7 @@ class IntegratedHillock:
             "crack": "cracked", "cracked": "cracked", "broke": "cracked"
         }
 
-        # Seed HDC codebook with initial graph entities
+        # Seed HDC codebook with initial graph entities using SimHash
         for ent_id in self.kg.get_all_entity_ids():
             self.hdc.get_or_allocate_hypervector(ent_id)
 
@@ -113,18 +117,15 @@ class IntegratedHillock:
     def resolve_entity_identity(self, name_str: str) -> str:
         normalized_new = name_str.strip().replace(" ", "_").lower()
 
-        # 1. Do not resolve common short prepositions or pronouns to complex entities
         if len(normalized_new) <= 2:
             return name_str.strip().replace(" ", "_")
 
         all_ids = self.kg.get_all_entity_ids()
 
-        # 2. Perfect Match
         for ent_id in all_ids:
             if ent_id.lower() == normalized_new:
                 return ent_id
 
-        # 3. Safe Component Match (checks split parts rather than raw substring)
         for ent_id in all_ids:
             lower_parts = ent_id.lower().split("_")
             if normalized_new in lower_parts:
@@ -154,7 +155,6 @@ class IntegratedHillock:
         }
         try:
             import urllib.request
-            import json
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
@@ -167,46 +167,19 @@ class IntegratedHillock:
         except Exception:
             return None
 
-    def parse_json_safely(self, raw_text: str) -> Optional[any]:
-        try:
-            cleaned = re.sub(r"```json|```", "", raw_text).strip()
-
-            # 1. Search for JSON array boundaries first
-            start_list = cleaned.find("[")
-            end_list = cleaned.rfind("]")
-
-            if start_list != -1 and end_list != -1:
-                return json.loads(cleaned[start_list:end_list + 1])
-
-            # 2. Fall back to object boundaries if no array exists
-            start_obj = cleaned.find("{")
-            end_obj = cleaned.rfind("}")
-            if start_obj != -1 and end_obj != -1:
-                return json.loads(cleaned[start_obj:end_obj + 1])
-        except Exception:
-            pass
-        return None
-
-    def extract_field_via_regex(self, text: str, field_name: str) -> Optional[str]:
-        pattern = r'"' + re.escape(field_name) + r'"\s*:\s*["\']?([^"\'}\n]+)["\']?'
-        match = re.search(pattern, text, re.IGNORECASE)
-        return match.group(1).strip() if match else None
-
-    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> \
-    List[Tuple[str, str, str, float]]:
+    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
         if not facts:
             return []
 
         query_tokens = set(re.sub(r"[^\w\s]", "", query).lower().split())
 
-        # Fixed v0.2.3: Extract normalized query components to prevent query length distortion
         query_components = set()
         for token in query_tokens:
             resolved = self.resolve_entity_identity(token)
             if len(token) > 2 or resolved in self.hdc.codebook:
                 query_components.add(resolved)
 
-        query_hv = np.zeros(self.hdc.d, dtype=np.int32)
+        query_hv = np.zeros(self.hdc.D, dtype=np.int32)
         for comp in query_components:
             if comp in self.hdc.codebook:
                 query_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=False)
@@ -218,25 +191,12 @@ class IntegratedHillock:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            pred_keywords = [p.lower().replace("_", " ")]
-            if p in ["collaborated_with", "work"]:
-                pred_keywords.extend(["work", "worked", "with", "partner", "collaborated"])
-            elif p in ["born_in", "bear"]:
-                pred_keywords.extend(["born", "in", "birth"])
-            elif p in ["discovered", "discover"]:
-                pred_keywords.extend(["discover", "discovered", "found"])
-            elif p in ["cracked", "crack"]:
-                pred_keywords.extend(["crack", "cracked", "broke"])
+            # Resolve predicate hypervector using SimHash continuous mapping
+            p_hv = self.hdc.resolve_predicate_hypervector(p)
 
-            best_pred_word = p.lower()
-            for kw in pred_keywords:
-                if kw in query_tokens:
-                    best_pred_word = kw
-                    break
+            components = [s_resolved, o_resolved]
+            fact_hv = p_hv.astype(np.int32).copy()
 
-            components = [s_resolved, o_resolved, best_pred_word]
-
-            fact_hv = np.zeros(self.hdc.d, dtype=np.int32)
             for comp in set(components):
                 resolved_comp = self.resolve_entity_identity(comp)
                 if resolved_comp in self.hdc.codebook:
@@ -248,110 +208,86 @@ class IntegratedHillock:
             f_norm = np.linalg.norm(fact_hv)
             similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
 
-            logger.info(f"HDC Semantic Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+            logger.info(f"HDC SimHash Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
             if similarity >= threshold:
                 scored_facts.append((s, p, o, similarity))
 
         scored_facts.sort(key=lambda x: x[3], reverse=True)
         return scored_facts
 
-    def extract_factual_declaration_two_pass(self, sentence: str) -> Optional[Dict[str, str]]:
-        system_1 = (
-            "You are an entity extractor. Output ONLY a JSON block.\n"
-            "Identify and extract the two primary entities being related in the sentence.\n"
-            "Normalize them using snake_case (e.g., 'Marie_Curie').\n"
-            "Example JSON:\n"
-            "{\n"
-            "  \"entity_a\": \"Marie_Curie\",\n"
-            "  \"entity_b\": \"Radioactivity\"\n"
-            "}\n"
-        )
-        response_1 = self.query_ollama(sentence, system_1)
-        if not response_1:
-            return None
+    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
+        """Gating routing controller with pronoun coreference resolution."""
+        is_query = self.is_question(query)
 
-        data_1 = self.parse_json_safely(response_1)
-        ent_a, ent_b = None, None
-        if data_1 and "entity_a" in data_1 and "entity_b" in data_1:
-            ent_a = data_1["entity_a"]
-            ent_b = data_1["entity_b"]
-        else:
-            ent_a = self.extract_field_via_regex(response_1, "entity_a")
-            ent_b = self.extract_field_via_regex(response_1, "entity_b")
+        greetings = {"hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye"}
+        query_clean = re.sub(r"[^\w\s]", "", query).strip().lower()
 
-        if not ent_a or not ent_b:
-            return None
+        if query_clean in greetings or len(query_clean.split()) < 2:
+            dummy_primed = []
+            dummy_fingerprint = []
+            if self.verbosity_mode == "CONVERSATIONAL":
+                return "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
+            elif self.verbosity_mode == "BALANCED":
+                return "Hillock > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
+            else:
+                return "Hillock > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
-        resolved_a = self.resolve_entity_identity(ent_a)
-        resolved_b = self.resolve_entity_identity(ent_b)
+        active_entities = self.link_entities(query)
 
-        system_2 = (
-            "You are a predicate extractor. Output ONLY a JSON block.\n"
-            "Extract ONLY the single verb or verb phrase that connects Entity A to Entity B in the sentence.\n"
-            "Rules:\n"
-            "1. Return ONLY the relationship verb, no nouns, subjects, or objects.\n"
-            "2. Fields required:\n"
-            "   - 'subject': string (normalized snake_case entity name, e.g. 'Marie_Curie')\n"
-            "   - 'predicate': string. YOU MUST CHOOSE EXACTLY ONE FROM THIS LIST: [born_in, collaborated_with, discovered, cracked, designed, developed, migrated_to, related_to]. Do not invent new predicates.\n"
-            "   - 'object': string (normalized snake_case target entity, e.g. 'Germany')\n"
-            "Example JSON:\n"
-            "{\n"
-            "  \"predicate\": \"discovered\"\n"
-            "}\n"
-        )
-        prompt_2 = (
-            f"Sentence: '{sentence}'\n"
-            f"Entity A: '{resolved_a}'\n"
-            f"Entity B: '{resolved_b}'"
-        )
-        response_2 = self.query_ollama(prompt_2, system_2)
-        if not response_2:
-            return None
+        # HDC Pronoun Resolution
+        if not active_entities:
+            pronouns = {"he", "she", "his", "her", "him", "they", "them", "it"}
+            query_words = set(re.sub(r"[^\w\s]", "", query).lower().split())
+            if query_words.intersection(pronouns):
+                fingerprint = self.hdc.get_context_fingerprint(top_k=1)
+                if fingerprint:
+                    closest_entity, similarity = fingerprint[0]
+                    logger.info(f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
+                    active_entities.add(closest_entity)
 
-        data_2 = self.parse_json_safely(response_2)
-        pred = None
-        if data_2 and "predicate" in data_2:
-            pred = data_2["predicate"]
-        else:
-            pred = self.extract_field_via_regex(response_2, "predicate")
+        # Update HDC context state sequentially
+        tokens = re.sub(r"[^\w\s]", "", query).lower().split()
+        for token in tokens:
+            resolved_id = self.resolve_entity_identity(token)
+            if resolved_id in self.hdc.codebook:
+                token_hv = self.hdc.get_or_allocate_hypervector(resolved_id, is_vocab_token=False)
+            else:
+                token_hv = self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
+            self.hdc.step(token_hv)
 
-        if not pred:
-            return None
+        hdc_fingerprint = self.hdc.get_context_fingerprint(top_k=3)
 
-        clean_pred = pred.strip().lower().replace(" ", "_")
-        normalized_b = resolved_b.lower().replace("_", "")
+        if is_query:
+            if active_entities:
+                candidate_facts = self.kg.get_all_facts_for_entities(active_entities)
+                matched_facts = self.select_answering_facts(query, candidate_facts)
+                if matched_facts:
+                    active_update_set = active_entities.copy()
+                    for s, p, o, _ in matched_facts:
+                        active_update_set.add(s)
+                        active_update_set.add(o)
+                    self.plasticity.update_associations(active_update_set)
 
-        if normalized_b in clean_pred.replace("_", ""):
-            clean_pred = clean_pred.replace(normalized_b, "").strip("_")
+                    if len(matched_facts) == 1:
+                        s, p, o, _ = matched_facts[0]
+                        facts_str = f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]"
+                        source_id = s
+                    else:
+                        facts_str = " | ".join([f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]" for s, p, o, _ in matched_facts])
+                        source_id = matched_facts[0][0]
 
-        if not clean_pred or clean_pred in ["", "_"]:
-            clean_pred = "related_to"
+                    primed_info = self.plasticity.get_associated_priming_context(source_id)
+                    system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info, hdc_fingerprint)
 
-        return {
-            "subject": resolved_a,
-            "predicate": clean_pred,
-            "object": resolved_b
-        }
+                    llm_response = self.query_ollama(render_prompt, system_prompt)
+                    if llm_response:
+                        return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
+                    else:
+                        return f"Hillock (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
-    def extract_sentence_relations(self, sentence: str) -> Optional[Dict[str, str]]:
-        """
-        Processes a single sentence using the robust two-pass extraction system.
-        This prevents subject-predicate co-mingling during bulk ingestion.
-        """
-        # Trigger the secure two-pass extraction (Pass 1: Entities, Pass 2: Predicate)
-        fact = self.extract_factual_declaration_two_pass(sentence)
-        if fact:
-            sub = fact.get("subject")
-            pred = fact.get("predicate")
-            obj = fact.get("object")
+            return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
-            if sub and pred and obj:
-                return {
-                    "subject": sub,
-                    "predicate": pred,
-                    "object": obj
-                }
-        return None
+        return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
     def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[str, str]:
         priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
@@ -392,177 +328,11 @@ class IntegratedHillock:
 
         return system_prompt, render_prompt
 
-    def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
-        """Gating routing controller with pronoun coreference resolution."""
-        is_query = self.is_question(query)
-
-        greetings = {"hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye"}
-        query_clean = re.sub(r"[^\w\s]", "", query).strip().lower()
-
-        if query_clean in greetings or len(query_clean.split()) < 2:
-            dummy_primed = []
-            dummy_fingerprint = []
-            if self.verbosity_mode == "CONVERSATIONAL":
-                return "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
-            elif self.verbosity_mode == "BALANCED":
-                return "Hillock > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
-            else:
-                return "Hillock > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
-
-        active_entities = self.link_entities(query)
-
-        # HDC Pronoun Resolution [1, 28]
-        if not active_entities:
-            pronouns = {"he", "she", "his", "her", "him", "they", "them", "it"}
-            query_words = set(re.sub(r"[^\w\s]", "", query).lower().split())
-            if query_words.intersection(pronouns):
-                fingerprint = self.hdc.get_context_fingerprint(top_k=1)
-                if fingerprint:
-                    closest_entity, similarity = fingerprint[0]
-                    logger.info(f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
-                    active_entities.add(closest_entity)
-
-        # Update HDC context state sequentially
-        tokens = re.sub(r"[^\w\s]", "", query).lower().split()
-        for token in tokens:
-            resolved_id = self.resolve_entity_identity(token)
-            if resolved_id in self.hdc.codebook:
-                token_hv = self.hdc.get_or_allocate_hypervector(resolved_id, is_vocab_token=False)
-            else:
-                token_hv = self.hdc.get_or_allocate_hypervector(token, is_vocab_token=True)
-            self.hdc.step(token_hv)
-
-        hdc_fingerprint = self.hdc.get_context_fingerprint(top_k=3)
-        resolved_value = None
-        source_id, predicate = None, None
-
-        if is_query:
-            if active_entities:
-                candidate_facts = self.kg.get_all_facts_for_entities(active_entities)
-                matched_facts = self.select_answering_facts(query, candidate_facts)
-                if matched_facts:
-                    # Update associations for all matched targets
-                    active_update_set = active_entities.copy()
-                    for s, p, o, _ in matched_facts:
-                        active_update_set.add(s)
-                        active_update_set.add(o)
-                    self.plasticity.update_associations(active_update_set)
-
-                    if len(matched_facts) == 1:
-                        s, p, o, _ = matched_facts[0]
-                        facts_str = f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]"
-                        source_id = s
-                    else:
-                        facts_str = " | ".join([f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]" for s, p, o, _ in matched_facts])
-                        source_id = matched_facts[0][0]
-
-                    primed_info = self.plasticity.get_associated_priming_context(source_id)
-                    system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info, hdc_fingerprint)
-
-                    llm_response = self.query_ollama(render_prompt, system_prompt)
-                    if llm_response:
-                        return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
-                    else:
-                        return f"Hillock (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
-
-            return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
-
-        # Safe Two-Pass Extraction conversational learning pathway [1, 23]
-        extracted_fact = self.extract_factual_declaration_two_pass(query)
-        if extracted_fact:
-            sub = extracted_fact["subject"]
-            pred = extracted_fact["predicate"]
-            obj = extracted_fact["object"]
-            norm_pred = self.predicate_map.get(pred, pred)
-            self.kg.update_relation(sub, norm_pred, obj)
-            self.plasticity.update_associations({sub, obj})
-            self.hdc.get_or_allocate_hypervector(sub)
-            self.hdc.get_or_allocate_hypervector(obj)
-            return f"Hillock (Autonomous Learner) > I have recorded a new factual declaration: [{sub.replace('_', ' ')}] -[{norm_pred}]-> [{obj.replace('_', ' ')}].", [], hdc_fingerprint, "EXTRACT_SUCCESS"
-
-        return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
-
-    def extract_fact_spacy(self, sentence: str) -> Optional[Dict[str, str]]:
-        """
-        Ingestion Speed Upgrade: Classical NLP parsing via SpaCy.
-        Extracts facts in under 1ms on CPU, using strict NER and grammatical constraints.
-        """
-        global nlp
-        if nlp is None:
-            return None
-        try:
-            doc = nlp(sentence)
-
-            # Step 1: Run NER to extract entities
-            content_labels = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "FAC", "PRODUCT"}
-            raw_ents = [ent for ent in doc.ents if ent.label_ in content_labels]
-
-            # Step 2: Filter entities (exclude those with numbers, punctuation, or >40 chars)
-            def is_clean_entity(text: str) -> bool:
-                cleaned_text = text.strip()
-                if len(cleaned_text) > 40:
-                    return False
-                if re.search(r"[^\w\s-]", cleaned_text) or re.search(r"\d", cleaned_text):
-                    return False
-                return True
-
-            clean_ents = [ent for ent in raw_ents if is_clean_entity(ent.text)]
-
-            # If we don't have exactly 2 or 3 clean entities, fall back to LLM
-            if len(clean_ents) not in (2, 3):
-                return None
-
-            # Anchor the subject and object
-            ent_a = clean_ents[0].text
-            ent_b = clean_ents[1].text
-
-            # Step 3: Find the root verb or verb phrase connecting them
-            verb_token = None
-            for token in doc:
-                if token.dep_ == "ROOT":
-                    verb_token = token
-                    break
-
-            if not verb_token:
-                return None
-
-            predicate = verb_token.lemma_
-
-            # Handle auxiliary verbs ("was born" -> "born_in")
-            if verb_token.lemma_ in ("be", "have", "do"):
-                for child in verb_token.children:
-                    if child.dep_ in ("acomp", "xcomp", "attr", "prep", "pobj"):
-                        predicate = child.lemma_
-                        break
-                # Special check for born pattern
-                for token in doc:
-                    if token.lemma_ in ("born", "bear"):
-                        predicate = "born_in"
-                        break
-
-            # Normalize names using existing entity codes
-            sub_resolved = self.resolve_entity_identity(ent_a.replace(" ", "_"))
-            obj_resolved = self.resolve_entity_identity(ent_b.replace(" ", "_"))
-
-            # Guard against identity loops (subject == object)
-            if sub_resolved.lower() == obj_resolved.lower():
-                return None
-
-            return {
-                "subject": sub_resolved,
-                "predicate": predicate,
-                "object": obj_resolved
-            }
-        except Exception as e:
-            logger.error(f"SpaCy NER extraction failed: {e}")
-            return None
-
 
 # Terminal loop orchestrator
 if __name__ == "__main__":
     hillock = IntegratedHillock(DB_FILE)
 
-    # Render the System Status Dashboard on Startup
     print_system_dashboard(hillock)
 
     while True:
@@ -590,28 +360,23 @@ if __name__ == "__main__":
             if user_input.strip() == "/reset":
                  print("Hillock [SYSTEM]: Initiating deliberate database reset...")
                  hillock.kg.clear_and_reinitialize()
-                 hillock.hdc.state = np.zeros(hillock.hdc.d, dtype=np.float64)
+                 hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
                  hillock.hdc.codebook.clear()
                  hillock.hdc.vocab_book.clear()
                  for ent_id in hillock.kg.get_all_entity_ids():
                      hillock.hdc.get_or_allocate_hypervector(ent_id)
-                 print("Hillock [SYSTEM]: Database has been cleanly reset, re-seeded, and HDC state cleared.")
+                 print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
                  continue
 
             if user_input.startswith("/ingest"):
                 parts = user_input.split()
                 if len(parts) >= 2:
                     filename = parts[1].strip()
-                    mode = "fast"
-                    if len(parts) >= 3:
-                        mode = parts[2].strip().lower()
-
-                    fast_mode = (mode == "fast")
-                    print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' (Mode: {mode.upper()})...")
-                    result = ingest_document_parallel(filename, hillock)
+                    print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' via TALON Engine...")
+                    result, _ = ingest_document_parallel(filename, hillock)
                     print(f"Hillock [SYSTEM]: {result}")
                 else:
-                    print("Hillock [SYSTEM]: Error. Correct format is: /ingest [filename.ext] [fast/thorough]")
+                    print("Hillock [SYSTEM]: Error. Correct format is: /ingest [filename.ext]")
                 continue
 
             reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)

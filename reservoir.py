@@ -1,33 +1,183 @@
-"""CPU-bound Context Compressor using Vector Symbolic Architectures (VSA)."""
+"""
+CPU-bound Context Compressor using Vector Symbolic Architectures (VSA).
+Integrates Subword Morphology and GloVe SimHash Semantic Projections (v0.3).
+"""
 
+import os
+import re
+import zipfile
+import urllib.request
+import hashlib
 import numpy as np
-from typing import Dict, List, Tuple
-from config import HDC_DIMENSION, HDC_DECAY
+from typing import Dict, List, Tuple, Optional
+from config import HDC_DIMENSION, HDC_DECAY, GLOVE_PATH, GLOVE_MAX_VOCAB, GLOVE_DIM
+
+
+def load_lightweight_glove(
+    glove_path=GLOVE_PATH,
+    max_vocab=GLOVE_MAX_VOCAB,
+    embedding_dim=GLOVE_DIM
+) -> Dict[str, np.ndarray]:
+    """
+    Downloads (if necessary) and loads a trimmed GloVe dictionary into memory.
+    Memory footprint for 50,000 words at 50 dimensions is ~10MB RAM.
+    """
+    if not os.path.exists(glove_path):
+        zip_path = "glove.6B.zip"
+        if not os.path.exists(zip_path):
+            print("[v0.3 HDC] Downloading lightweight Stanford GloVe embeddings (50d)...")
+            url = "https://nlp.stanford.edu/data/glove.6B.zip"
+            urllib.request.urlretrieve(url, zip_path)
+        print("[v0.3 HDC] Extracting glove.6B.50d.txt...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extract("glove.6B.50d.txt")
+
+    glove_dict = {}
+    print(f"[v0.3 HDC] Loading top {max_vocab} words from {glove_path}...")
+    with open(glove_path, 'r', encoding='utf-8') as f:
+        for idx, line in enumerate(f):
+            if idx >= max_vocab:
+                break
+            parts = line.strip().split(' ')
+            word = parts[0]
+            vector = np.array(parts[1:], dtype=np.float32)
+            if len(vector) == embedding_dim:
+                glove_dict[word] = vector
+    print(f"[v0.3 HDC] Loaded {len(glove_dict)} word vectors into memory (~10MB RAM).")
+    return glove_dict
+
+
+class SubwordHDCEncoder:
+    """Extracts subword character n-grams and superposes them into HDC space."""
+    def __init__(self, dimension=HDC_DIMENSION, n_gram_range=(3, 4, 5)):
+        self.D = dimension
+        self.n_gram_range = n_gram_range
+
+    def _hash_ngram(self, ngram_str: str) -> np.ndarray:
+        md5_hash = hashlib.md5(ngram_str.encode('utf-8')).digest()
+        seed = int.from_bytes(md5_hash[:4], byteorder='little')
+        rng = np.random.RandomState(seed)
+        return rng.choice([-1, 1], size=self.D).astype(np.int8)
+
+    def encode(self, text: str) -> np.ndarray:
+        padded_text = f"#{text.lower().strip()}#"
+        accumulated_sum = np.zeros(self.D, dtype=np.int32)
+        count = 0
+        for n in range(self.n_gram_range[0], self.n_gram_range[1] + 1):
+            for i in range(len(padded_text) - n + 1):
+                ngram = padded_text[i:i+n]
+                accumulated_sum += self._hash_ngram(ngram)
+                count += 1
+        if count == 0:
+            return np.random.choice([-1, 1], size=self.D).astype(np.int8)
+
+        res = np.sign(accumulated_sum).astype(np.int8)
+        res[res == 0] = 1
+        return res
+
+
+class SignRandomProjectionSimHash:
+    """Locality-Sensitive Sign Random Projection (SimHash) for dense embeddings."""
+    def __init__(self, input_dim=GLOVE_DIM, hdc_dim=HDC_DIMENSION, seed=42):
+        self.d = input_dim
+        self.D = hdc_dim
+        rng = np.random.RandomState(seed)
+        self.R = rng.normal(0.0, 1.0, size=(self.D, self.d)).astype(np.float32)
+
+    def project(self, dense_vector: np.ndarray) -> np.ndarray:
+        dense_vec = np.asarray(dense_vector, dtype=np.float32)
+        norm = np.linalg.norm(dense_vec)
+        if norm > 0:
+            dense_vec = dense_vec / norm
+
+        projected = np.dot(self.R, dense_vec)
+        res = np.sign(projected).astype(np.int8)
+        res[res == 0] = 1
+        return res
 
 
 class HyperdimensionalReservoir:
-    def __init__(self, d: int = HDC_DIMENSION):
-        self.d = d
-        self.state = np.zeros(self.d, dtype=np.float64)
+    """
+    Reservoir with fading memory (decay) integrating Subword Morphology
+    and GloVe SimHash Semantic Projections.
+    """
+    def __init__(
+        self,
+        dimension=HDC_DIMENSION,
+        decay=HDC_DECAY,
+        glove_dict=None,
+        glove_dim=GLOVE_DIM,
+        seed=42
+    ):
+        self.D = dimension
+        self.decay = decay
+        self.glove_dict = glove_dict if glove_dict is not None else {}
+        self.glove_dim = glove_dim
+
+        self.subword_encoder = SubwordHDCEncoder(dimension=self.D)
+        self.simhash_projector = SignRandomProjectionSimHash(
+            input_dim=self.glove_dim,
+            hdc_dim=self.D,
+            seed=seed
+        )
         self.codebook: Dict[str, np.ndarray] = {}
         self.vocab_book: Dict[str, np.ndarray] = {}
+        self.state = np.zeros(self.D, dtype=np.float64)
 
     def get_or_allocate_hypervector(self, name_id: str, is_vocab_token: bool = False) -> np.ndarray:
         book = self.vocab_book if is_vocab_token else self.codebook
         if name_id not in book:
-            vector = np.random.choice([-1, 1], size=self.d).astype(np.int32)
-            book[name_id] = vector
+            book[name_id] = self.resolve_predicate_hypervector(name_id)
         return book[name_id]
 
-    def step(self, token_hv: np.ndarray, decay: float = HDC_DECAY) -> np.ndarray:
-        """
-        Correct leaky reservoir update rule.
-        Adds token_hv directly to ensure zero-initialized state leaves 0.
-        """
+    def _get_glove_dense_vector(self, predicate_str: str) -> Optional[np.ndarray]:
+        tokens = [t.lower() for t in re.split(r'[^a-zA-Z0-9]+', predicate_str) if t]
+        valid_vectors = []
+        for token in tokens:
+            if token in self.glove_dict:
+                valid_vectors.append(self.glove_dict[token])
+
+        if not valid_vectors:
+            return None
+
+        mean_vec = np.mean(valid_vectors, axis=0)
+        norm = np.linalg.norm(mean_vec)
+        if norm > 0:
+            mean_vec = mean_vec / norm
+        return mean_vec
+
+    def resolve_predicate_hypervector(self, predicate_str: str) -> np.ndarray:
+        # 1. Morphological Subword Hypervector (Fallback/Structural)
+        h_subword = self.subword_encoder.encode(predicate_str)
+
+        # 2. Semantic GloVe SimHash Hypervector (Conceptual)
+        dense_vec = self._get_glove_dense_vector(predicate_str)
+        if dense_vec is not None:
+            h_simhash = self.simhash_projector.project(dense_vec)
+            combined_sum = h_simhash.astype(np.int32) + h_subword.astype(np.int32)
+            h_final = np.sign(combined_sum).astype(np.int8)
+            h_final[h_final == 0] = 1
+            return h_final
+        else:
+            return h_subword
+
+    def step(self, token_hv: np.ndarray, decay: float = None) -> np.ndarray:
+        if decay is None:
+            decay = self.decay
         bound_token = np.roll(self.state, shift=1) * token_hv
-        # Fixed v0.2.3: Added + token_hv to allow non-zero state trajectory
         self.state = (decay * self.state) + token_hv.astype(np.float64) + bound_token
         return self.state
+
+    def get_bipolar_state(self) -> np.ndarray:
+        bipolar = np.sign(self.state).astype(np.int8)
+        bipolar[bipolar == 0] = 1
+        return bipolar
+
+    def cosine_similarity_against_state(self, candidate_predicate_str: str) -> float:
+        h_candidate = self.resolve_predicate_hypervector(candidate_predicate_str)
+        current_bipolar_state = self.get_bipolar_state()
+        dot_prod = np.dot(current_bipolar_state.astype(np.float32), h_candidate.astype(np.float32))
+        return float(dot_prod / self.D)
 
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
         scores = []
@@ -44,3 +194,39 @@ class HyperdimensionalReservoir:
 
         scores.sort(key=lambda x: x[1], reverse=True)
         return scores[:top_k]
+
+
+# Self-test execution block
+if __name__ == "__main__":
+    print("=" * 60)
+    print("      v0.3 HYPERDIMENSIONAL RESERVOIR SELF-TEST      ")
+    print("=" * 60)
+
+    # Setup Mock GloVe dictionary
+    mock_glove = {
+        "worked": np.random.normal(0, 1, 50).astype(np.float32),
+        "alongside": np.random.normal(0, 1, 50).astype(np.float32),
+        "collaborated": np.random.normal(0, 1, 50).astype(np.float32),
+        "with": np.random.normal(0, 1, 50).astype(np.float32)
+    }
+    # Make 'worked_alongside' and 'collaborated_with' semantically close in continuous space
+    mock_glove["collaborated"] = mock_glove["worked"] + np.random.normal(0, 0.1, 50).astype(np.float32)
+
+    reservoir = HyperdimensionalReservoir(
+        dimension=10000,
+        decay=0.85,
+        glove_dict=mock_glove,
+        glove_dim=50
+    )
+
+    # Resolve predicate hypervectors
+    hv1 = reservoir.resolve_predicate_hypervector("worked_alongside")
+    hv2 = reservoir.resolve_predicate_hypervector("collaborated_with")
+
+    # Compute SimHash Hamming similarity
+    sim = np.dot(hv1.astype(np.float32), hv2.astype(np.float32)) / 10000.0
+    print(f"  * Predicate A : 'worked_alongside'")
+    print(f"  * Predicate B : 'collaborated_with'")
+    print(f"  * SimHash Bipolar Cosine Similarity: {sim:.4f}")
+    print("=" * 60)
+    print("Self-test completed successfully!")
