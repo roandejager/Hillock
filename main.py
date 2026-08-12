@@ -370,4 +370,29 @@ if __name__ == "__main__":
 
             if user_input.startswith("/ingest"):
                 parts = user_input.split()
-                if len(par
+                if len(parts) >= 2:
+                    filename = parts[1].strip()
+                    print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' via TALON Engine...")
+                    result, _ = ingest_document_parallel(filename, hillock)
+                    print(f"Hillock [SYSTEM]: {result}")
+                else:
+                    print("Hillock [SYSTEM]: Error. Correct format is: /ingest [filename.ext]")
+                continue
+
+            reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
+            print(reply)
+
+            if primed:
+                print("  [Memory Priming Node Activations]:")
+                for node, weight in primed[:3]:
+                    print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
+
+            if fingerprint and mode == "RENDER_SUCCESS":
+                print("  [HDC Conversational Fingerprint Traces]:")
+                for node, sim in fingerprint[:3]:
+                    print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
+            print()
+
+        except KeyboardInterrupt:
+            print("\nSafely shutting down local hillock.")
+            break
