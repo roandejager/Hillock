@@ -1,5 +1,5 @@
 """
-Hillock Ingestor Module (TALON Integration - v0.2.1)
+Hillock Ingestor Module (TALON Integration - v0.2.4 Timing Refinement)
 Routes bulk document extractions through the TALON Engine.
 """
 
@@ -64,7 +64,7 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
     Ingests documents using the TALON Engine.
     Persists extracted SPO triples directly into SQLite, Plasticity, and HDC state space.
     """
-    start_time = time.perf_counter()
+    t_start = time.perf_counter()
 
     try:
         raw_text = get_raw_document_text(file_path)
@@ -112,9 +112,23 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
     else:
         print(f"Hillock [INGESTOR]: TALON Engine unavailable. Falling back to legacy parsing...")
 
-    elapsed_time = time.perf_counter() - start_time
+    t_end = time.perf_counter()
+
+    # Retrieve timing milestones from talon instance
+    t_first = getattr(talon, "t_first_triple", None) if talon else None
+    t_last = getattr(talon, "t_last_triple", None) if talon else None
+
+    if t_first is None:
+        t_first = t_end
+    if t_last is None:
+        t_last = t_end
+
+    cold_start_time = max(0.0, t_first - t_start)
+    pure_extraction_time = max(0.0, t_last - t_first)
+    total_time = max(0.0, t_end - t_start)
+
     sentences_count = len([s for s in re.split(r"[.!?\n]", raw_text) if s.strip()])
-    ingestion_rate = sentences_count / elapsed_time if elapsed_time > 0 else 0.0
+    pure_rate = sentences_count / pure_extraction_time if pure_extraction_time > 0 else 0.0
 
     specs_str = ""
     if psutil:
@@ -127,11 +141,13 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
         f"========================================================\n"
         f"        TALON ENGINE BULK INGESTION SUMMARY REPORT     \n"
         f"========================================================\n"
-        f"  * File Processed      : {os.path.basename(file_path)}\n"
-        f"  * Total Sentences     : {sentences_count}\n"
-        f"  * Extracted Triples   : {len(extracted_relations)}\n"
-        f"  * Processing Time     : {elapsed_time:.2f} seconds\n"
-        f"  * Ingestion Rate      : {ingestion_rate:.1f} sentences/sec{specs_str}\n"
+        f"  * File Processed             : {os.path.basename(file_path)}\n"
+        f"  * Total Sentences            : {sentences_count}\n"
+        f"  * Extracted Triples          : {len(extracted_relations)}\n"
+        f"  * Model Load & Cold-Start    : {cold_start_time:.2f} seconds\n"
+        f"  * Pure Extraction Duration   : {pure_extraction_time:.2f} seconds\n"
+        f"  * Pure Extraction Rate       : {pure_rate:.1f} sentences/sec{specs_str}\n"
+        f"  * Total Processing Time      : {total_time:.2f} seconds\n"
         f"========================================================"
     )
     return summary

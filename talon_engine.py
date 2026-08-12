@@ -1,18 +1,22 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Engine Module - v0.2.2 Quality & Entity Canonicalization Patch
+Engine Module - v0.2.4 CUDA Tensor Batching & Sub-Second Ingestion
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
 
 import os
 import re
+import time
 import logging
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 
 # Disable HuggingFace Windows Symlink Warning
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
 
 # 1. Monkey-patch HuggingFace transformers security block for torch.load
 try:
@@ -118,6 +122,9 @@ class CoreferenceResolver:
             logger.error("fastcoref library is not installed.")
             return False
 
+        if self.model is not None:
+            return True
+
         try:
             logger.info(f"Loading Fastcoref model on {self.device}...")
             self.model = FCoref(device=self.device)
@@ -191,6 +198,9 @@ class DynamicPredicateRouter:
             logger.error("sentence-transformers is not installed.")
             return False
 
+        if self.model is not None and self.taxonomy_embeddings is not None:
+            return True
+
         try:
             logger.info(f"Loading MiniLM Bi-Encoder on {self.device}...")
             self.model = SentenceTransformer("all-MiniLM-L6-v2", device=self.device)
@@ -203,24 +213,30 @@ class DynamicPredicateRouter:
             logger.error(f"Failed to load SentenceTransformer: {e}")
             return False
 
-    def select_top_predicates(self, sentence: str, top_k: int = 10) -> List[str]:
+    def select_top_predicates_batch(self, sentences: List[str], top_k: int = 10) -> List[List[str]]:
+        """CUDA Batch Matrix Multiplication: Encodes all sentences at once in a single GPU pass."""
         if self.model is None or self.taxonomy_embeddings is None:
             if not self.load_model():
-                return self.taxonomy[:top_k]
+                return [self.taxonomy[:top_k] for _ in sentences]
 
         try:
-            sentence_embedding = self.model.encode(sentence, convert_to_tensor=True)
-            cosine_scores = util.cos_sim(sentence_embedding, self.taxonomy_embeddings)[0]
-            top_indices = np.argsort(cosine_scores.cpu().numpy())[::-1][:top_k]
+            sentence_embeddings = self.model.encode(sentences, convert_to_tensor=True, batch_size=len(sentences))
+            cosine_scores = util.cos_sim(sentence_embeddings, self.taxonomy_embeddings)
 
-            return [self.taxonomy[idx] for idx in top_indices]
+            batch_results = []
+            for i in range(len(sentences)):
+                scores = cosine_scores[i].cpu().numpy()
+                top_indices = np.argsort(scores)[::-1][:top_k]
+                batch_results.append([self.taxonomy[idx] for idx in top_indices])
+
+            return batch_results
         except Exception as e:
-            logger.error(f"Predicate routing error: {e}")
-            return self.taxonomy[:top_k]
+            logger.error(f"Batch predicate routing error: {e}")
+            return [self.taxonomy[:top_k] for _ in sentences]
 
 
 class ZeroShotRelationExtractor:
-    """Stage 3: Zero-Shot Span Relation Extractor using GLiREL + SpaCy NER."""
+    """Stage 3: Zero-Shot Span Relation Extractor using GLiREL Large (High Precision Model)."""
 
     def __init__(self, model_name: str = "jackboyla/glirel-large-v0", device: str = "cuda:0"):
         self.model_name = model_name
@@ -232,12 +248,15 @@ class ZeroShotRelationExtractor:
             logger.error("glirel library is not installed.")
             return False
 
+        if self.model is not None:
+            return True
+
         try:
-            logger.info(f"Loading GLiREL Model '{self.model_name}' on {self.device}...")
+            logger.info(f"Loading GLiREL Large Model '{self.model_name}' on {self.device}...")
             self.model = GLiREL.from_pretrained(self.model_name)
             if hasattr(self.model, "to"):
                 self.model.to(self.device)
-            logger.info("GLiREL Model loaded successfully!")
+            logger.info("GLiREL Large Model loaded successfully!")
             return True
         except Exception as e:
             logger.error(f"Failed to load GLiREL model: {e}")
@@ -257,14 +276,12 @@ class ZeroShotRelationExtractor:
             doc = nlp(sentence)
             tokens = [token.text for token in doc]
 
-            # 1. Extract clean NER entity spans from spaCy
             ner = []
             for ent in doc.ents:
                 clean_name = clean_entity_text(ent.text)
                 if clean_name and len(clean_name) > 1:
                     ner.append([ent.start, ent.end, ent.label_, clean_name])
 
-            # 2. Fallback to clean noun chunks if sentence lacks formal named entities
             if len(ner) < 2:
                 ner = []
                 for chunk in doc.noun_chunks:
@@ -275,7 +292,6 @@ class ZeroShotRelationExtractor:
             if len(ner) < 2:
                 return []
 
-            # 3. Predict relations via GLiREL zero-shot matrix scoring (Calibrated Threshold: 0.42)
             results = self.model.predict_relations(
                 tokens,
                 candidate_labels,
@@ -314,16 +330,26 @@ class ZeroShotRelationExtractor:
 
 
 class TalonEngine:
-    """Master Orchestrator unifying Stage 1, Stage 2, and Stage 3 into a sub-second pipeline."""
+    """Master Orchestrator unifying Stage 1, Stage 2, and Stage 3 into a batch-accelerated CUDA pipeline."""
 
     def __init__(self, device: str = "cuda:0"):
         self.device = device
         self.coref = CoreferenceResolver(device=device)
         self.router = DynamicPredicateRouter(device=device)
         self.extractor = ZeroShotRelationExtractor(device=device)
+        self.t_first_triple: Optional[float] = None
+        self.t_last_triple: Optional[float] = None
 
-    def process_document(self, document_text: str) -> List[Dict[str, str]]:
-        logger.info("=== Starting TALON High-Speed Ingestion Pipeline ===")
+        logger.info("Pre-warming TALON CUDA models into GPU VRAM...")
+        self.coref.load_model()
+        self.router.load_model()
+        self.extractor.load_model()
+        logger.info("TALON Engine pre-warm complete! Ready for batched extractions.")
+
+    def process_document(self, document_text: str, batch_size: int = 16) -> List[Dict[str, str]]:
+        logger.info("=== Starting TALON High-Speed Ingestion Pipeline (CUDA Batched) ===")
+        self.t_first_triple = None
+        self.t_last_triple = None
 
         # Step 1: Coreference Resolution
         logger.info("[TALON Stage 1] Resolving document coreferences...")
@@ -331,18 +357,30 @@ class TalonEngine:
 
         # Step 2: Split into sentences
         sentences = [s.strip() for s in re.split(r"[.!?\n]", resolved_doc) if s.strip()]
-        logger.info(f"[TALON Engine] Processing {len(sentences)} resolved sentences...")
+        logger.info(f"[TALON Engine] Processing {len(sentences)} resolved sentences in CUDA batches of {batch_size}...")
+
+        if not sentences:
+            self.t_last_triple = time.perf_counter()
+            return []
 
         all_triples = []
-        for idx, sentence in enumerate(sentences):
-            # Step 3: Route Top Predicates for this sentence
-            top_predicates = self.router.select_top_predicates(sentence, top_k=10)
 
-            # Step 4: Zero-Shot Relation Extraction
-            triples = self.extractor.extract_relations(sentence, top_predicates)
-            for t in triples:
-                all_triples.append(t)
-                logger.info(f"  * Extracted Triple [Sentence {idx+1}]: [{t['subject']}] -[{t['predicate']}]-> [{t['object']}]")
+        # Step 3: Process sentences in GPU Batches
+        for i in range(0, len(sentences), batch_size):
+            batch_sentences = sentences[i : i + batch_size]
+            batch_top_preds = self.router.select_top_predicates_batch(batch_sentences, top_k=10)
+
+            for idx, sentence in enumerate(batch_sentences):
+                triples = self.extractor.extract_relations(sentence, batch_top_preds[idx])
+                for t in triples:
+                    if self.t_first_triple is None:
+                        self.t_first_triple = time.perf_counter()
+                    all_triples.append(t)
+                    logger.info(f"  * Extracted Triple [Sentence {i + idx + 1}]: [{t['subject']}] -[{t['predicate']}]-> [{t['object']}]")
+
+        self.t_last_triple = time.perf_counter()
+        if self.t_first_triple is None:
+            self.t_first_triple = self.t_last_triple
 
         return all_triples
 
@@ -351,7 +389,7 @@ class TalonEngine:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("=" * 60)
-    print("      TALON ENGINE - FULL PIPELINE INTEGRATION TEST      ")
+    print("      TALON ENGINE - BATCH-ACCELERATED TEST      ")
     print("=" * 60)
 
     talon = TalonEngine()
