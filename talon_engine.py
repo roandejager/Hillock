@@ -1,6 +1,6 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Engine Module - v0.2.4 CUDA Tensor Batching & Sub-Second Ingestion
+Engine Module - v0.4 Precision Extraction & Type-Constrained Schema Validation
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
@@ -10,7 +10,7 @@ import re
 import time
 import logging
 import numpy as np
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set
 
 # Disable HuggingFace Windows Symlink Warning
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -89,6 +89,90 @@ DEFAULT_PREDICATE_TAXONOMY = [
     "influenced_by", "student_of", "teacher_of", "successor_to", "predecessor_to",
     "migrated_to", "moved_to", "resided_in", "patented", "manufactured", "operated_by"
 ]
+
+# Type-Constrained Schema Validation Matrix for v0.4 (#15)
+# Maps all ~50 Wikidata predicates to allowed Head (Subject) and Tail (Object) entity types.
+ANY_ENTITY = {"PERSON", "GPE", "LOC", "ORG", "FAC", "PRODUCT", "WORK_OF_ART", "EVENT", "LAW", "NORP", "DATE", "ENTITY", "CONCEPT"}
+
+PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
+    # Person -> Location / Geopolitical
+    "born_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "died_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "place_of_birth": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "place_of_death": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "country_of_citizenship": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "NORP", "ENTITY"}},
+    "migrated_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+    "moved_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+    "resided_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+
+    # Person -> Person
+    "collaborated_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "worked_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "partnered_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "spouse_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "child_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "parent_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "student_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "teacher_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "successor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "predecessor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "influenced_by": {"head": {"PERSON"}, "tail": {"PERSON"}},
+
+    # Person / Org -> Work / Concept / Machine / Product
+    "discovered": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "co_invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "developed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "designed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "created": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "cracked": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "authored": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "wrote": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "published": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "formulated": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "proposed": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "patented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "CONCEPT", "ENTITY"}},
+    "manufactured": {"head": {"PERSON", "ORG"}, "tail": {"PRODUCT", "FAC", "WORK_OF_ART", "ENTITY"}},
+
+    # Person / Org -> Organization / Institution / Facility
+    "founded": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+    "educated_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "studied_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "employed_by": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "worked_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "member_of": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+    "affiliated_with": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+
+    # Person / Org -> Award / Honor
+    "award_received": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+    "won": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+    "nominated_for": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+
+    # Location -> Location / Facility / Organization
+    "capital_of": {"head": {"GPE", "LOC", "FAC"}, "tail": {"GPE", "LOC"}},
+    "located_in": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC"}},
+    "headquartered_in": {"head": {"ORG", "FAC"}, "tail": {"GPE", "LOC", "FAC"}},
+    "contains": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC", "ORG"}},
+    "has_part": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "part_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+
+    # Abstract / Hierarchy / Concept
+    "field_of_work": {"head": {"PERSON", "ORG"}, "tail": {"CONCEPT", "WORK_OF_ART", "PRODUCT", "ENTITY"}},
+    "subclass_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "instance_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "operated_by": {"head": {"FAC", "ORG", "PRODUCT", "GPE", "LOC"}, "tail": {"PERSON", "ORG"}}
+}
+
+
+def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) -> bool:
+    """O(1) Schema Validator checking if candidate head/tail entity types match predicate constraints."""
+    allowed = PREDICATE_SCHEMA.get(predicate)
+    if not allowed:
+        return True  # Fallback to allow unlisted custom predicates
+
+    head_valid = (head_type in allowed["head"]) or ("ENTITY" in allowed["head"])
+    tail_valid = (tail_type in allowed["tail"]) or ("ENTITY" in allowed["tail"])
+    return head_valid and tail_valid
 
 
 def clean_entity_text(text: str) -> str:
