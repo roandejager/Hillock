@@ -1,6 +1,6 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Engine Module - v0.4 Precision Extraction & Type-Constrained Schema Validation
+Engine Module - v0.4.1 Precision Extraction & Directionality Auto-Correction
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
@@ -91,77 +91,14 @@ DEFAULT_PREDICATE_TAXONOMY = [
     "migrated_to", "moved_to", "resided_in", "patented", "manufactured", "operated_by"
 ]
 
-# Type-Constrained Schema Validation Matrix for v0.4 (#15)
-ANY_ENTITY = {"PERSON", "GPE", "LOC", "ORG", "FAC", "PRODUCT", "WORK_OF_ART", "EVENT", "LAW", "NORP", "DATE", "ENTITY", "CONCEPT"}
-
-PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
-    # Person -> Location / Geopolitical
-    "born_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
-    "died_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
-    "place_of_birth": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
-    "place_of_death": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
-    "country_of_citizenship": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "NORP", "ENTITY"}},
-    "migrated_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
-    "moved_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
-    "resided_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
-
-    # Person -> Person
-    "collaborated_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "worked_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "partnered_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "spouse_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "child_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "parent_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "student_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "teacher_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "successor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "predecessor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
-    "influenced_by": {"head": {"PERSON"}, "tail": {"PERSON"}},
-
-    # Person / Org -> Work / Concept / Machine / Product
-    "discovered": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "co_invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "developed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "designed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "created": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "cracked": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "authored": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "wrote": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "published": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "formulated": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "proposed": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
-    "patented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "CONCEPT", "ENTITY"}},
-    "manufactured": {"head": {"PERSON", "ORG"}, "tail": {"PRODUCT", "FAC", "WORK_OF_ART", "ENTITY"}},
-
-    # Person / Org -> Organization / Institution / Facility
-    "founded": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
-    "educated_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
-    "studied_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
-    "employed_by": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
-    "worked_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
-    "member_of": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
-    "affiliated_with": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
-
-    # Person / Org -> Award / Honor
-    "award_received": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
-    "won": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
-    "nominated_for": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
-
-    # Location -> Location / Facility / Organization
-    "capital_of": {"head": {"GPE", "LOC", "FAC"}, "tail": {"GPE", "LOC"}},
-    "located_in": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC"}},
-    "headquartered_in": {"head": {"ORG", "FAC"}, "tail": {"GPE", "LOC", "FAC"}},
-    "contains": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC", "ORG"}},
-    "has_part": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
-    "part_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
-
-    # Abstract / Hierarchy / Concept
-    "field_of_work": {"head": {"PERSON", "ORG"}, "tail": {"CONCEPT", "WORK_OF_ART", "PRODUCT", "ENTITY"}},
-    "subclass_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
-    "instance_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
-    "operated_by": {"head": {"FAC", "ORG", "PRODUCT", "GPE", "LOC"}, "tail": {"PERSON", "ORG"}}
+# Origin Predicates where Head MUST be Person and Tail MUST be Location
+ORIGIN_PREDICATES = {
+    "born_in", "died_in", "place_of_birth", "place_of_death",
+    "migrated_to", "moved_to", "resided_in", "country_of_citizenship"
 }
+
+# Strict Location NER Tags
+LOCATION_TAGS = {"GPE", "LOC"}
 
 # Whitelist of Symmetric Predicates (v0.4 #15)
 SYMMETRIC_PREDICATES: Set[str] = {
@@ -170,7 +107,7 @@ SYMMETRIC_PREDICATES: Set[str] = {
 
 # Precompiled High-Precision Regexes for Entity Sanitization (v0.4 #15)
 POSSESSIVE_RE = re.compile(r"(?<=\w)['’]s\b|(?<=s)['’]\b", re.UNICODE)
-TRAILING_POSSESSIVE_SUFFIX_RE = re.compile(r"[\s_]+s$", re.IGNORECASE)
+TRAILING_POSSESSIVE_SUFFIX_RE = re.compile(r"[\s_]+(['’]?s|work|code)$", re.IGNORECASE)
 TRAILING_VERB_RE = re.compile(
     r"[\s_]+(collaborated|built|studied|worked|discovered|designed|developed|cracked|authored|wrote|published|formulated|proposed|patented|founded|created)$",
     re.IGNORECASE
@@ -179,17 +116,6 @@ PREPOSITION_TAIL_RE = re.compile(
     r"[\s_]+(under|before|to|in|at|by|of|where|while|with|for|from|on)$",
     re.IGNORECASE
 )
-
-
-def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) -> bool:
-    """O(1) Schema Validator checking if candidate head/tail entity types match predicate constraints."""
-    allowed = PREDICATE_SCHEMA.get(predicate)
-    if not allowed:
-        return True  # Fallback to allow unlisted custom predicates
-
-    head_valid = (head_type in allowed["head"]) or ("ENTITY" in allowed["head"])
-    tail_valid = (tail_type in allowed["tail"]) or ("ENTITY" in allowed["tail"])
-    return head_valid and tail_valid
 
 
 def get_canonical_triple_key(subject: str, predicate: str, object_: str) -> Tuple[str, str, str]:
@@ -230,7 +156,7 @@ def clean_entity_text(text: str) -> str:
     # 1. Unicode Normalization
     cleaned = unicodedata.normalize("NFC", text).strip()
 
-    # 2. Strip possessives ('s, ’s, _s)
+    # 2. Strip possessives and trailing noise suffixes ('s, ’s, _s, _work, _code)
     cleaned = POSSESSIVE_RE.sub("", cleaned)
     cleaned = TRAILING_POSSESSIVE_SUFFIX_RE.sub("", cleaned)
 
@@ -456,21 +382,21 @@ class ZeroShotRelationExtractor:
                 if clean_head.lower() == clean_tail.lower():
                     continue
 
-                # Fetch head & tail entity types for O(1) schema validation
                 head_type = entity_type_map.get(clean_head.lower(), "ENTITY")
                 tail_type = entity_type_map.get(clean_tail.lower(), "ENTITY")
 
-                # 1. Type-Constrained Schema Validation (v0.4 #15)
-                if not is_valid_predicate_schema(label, head_type, tail_type):
-                    logger.debug(f"Schema violation dropped: [{clean_head} ({head_type})] -[{label}]-> [{clean_tail} ({tail_type})]")
-                    continue
+                # Directionality Auto-Correction for Origin Predicates
+                if label in ORIGIN_PREDICATES:
+                    if head_type in LOCATION_TAGS and tail_type not in LOCATION_TAGS:
+                        # GLiREL extracted [Location born_in Person] -> Auto-swap to [Person born_in Location]!
+                        clean_head, clean_tail = clean_tail, clean_head
+                        head_type, tail_type = tail_type, head_type
 
-                # 2. Inverted Asymmetric Pair Purging (v0.4 #15)
+                # Inverted Asymmetric Pair Purging
                 if is_inverted_asymmetric_pair(clean_head, label, clean_tail, seen_keys):
-                    logger.debug(f"Inverted asymmetric pair dropped: [{clean_head}] -[{label}]-> [{clean_tail}]")
                     continue
 
-                # 3. Canonical Deduplication Key Check (v0.4 #15)
+                # Canonical Deduplication Key Check
                 canon_key = get_canonical_triple_key(clean_head, label, clean_tail)
                 if canon_key in seen_keys:
                     continue

@@ -5,10 +5,10 @@ DB_FILE = "hillock_kg.db"
 OLLAMA_MODEL = "qwen3:latest"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 
-# HDC Hyperparameters (v0.3.1 Recalibrated for SimHash Baseline)
+# HDC Hyperparameters (v0.4.1 Recalibrated for SimHash Baseline)
 HDC_DIMENSION = 10000
 HDC_DECAY = 0.95            # Fading memory decay rate
-HDC_THRESHOLD = 0.68        # Recalibrated gating threshold for continuous SimHash vectors
+HDC_THRESHOLD = 0.72        # Recalibrated gating threshold to eliminate hallucination leaks
 
 # GloVe & SimHash Continuous Vector Settings (v0.3 - Neuro-Symbolic Expansion)
 GLOVE_PATH = "glove.6B.50d.txt"
