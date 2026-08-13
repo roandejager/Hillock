@@ -1,5 +1,5 @@
 """
-Hillock Ingestor Module (TALON Integration - v0.2.4 Timing Refinement)
+Hillock Ingestor Module (TALON Integration - v0.2.4 / v0.3 Timing Refinement)
 Routes bulk document extractions through the TALON Engine.
 """
 
@@ -59,25 +59,26 @@ def get_raw_document_text(file_path: str) -> str:
             return f.read()
 
 
-def ingest_document_parallel(file_path: str, hillock) -> str:
+def ingest_document_parallel(file_path: str, hillock) -> Tuple[str, Dict[str, float]]:
     """
     Ingests documents using the TALON Engine.
-    Persists extracted SPO triples directly into SQLite, Plasticity, and HDC state space.
+    Returns (summary_str, timing_stats_dict).
     """
     t_start = time.perf_counter()
 
     try:
         raw_text = get_raw_document_text(file_path)
     except Exception as e:
-        return f"Error reading file '{file_path}': {e}"
+        return f"Error reading file '{file_path}': {e}", {}
 
     if not raw_text.strip():
-        return f"File '{file_path}' is empty."
+        return f"File '{file_path}' is empty.", {}
 
     # Fetch TALON Engine
     talon = get_talon_engine()
 
     extracted_relations = []
+    active_entities_to_update = set()
 
     if talon is not None:
         print(f"\nHillock [INGESTOR]: Routing '{os.path.basename(file_path)}' through TALON Engine (CUDA Accelerated)...")
@@ -95,19 +96,20 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
             obj = hillock.resolve_entity_identity(obj_raw)
             norm_pred = hillock.predicate_map.get(pred_raw.strip().lower(), pred_raw.strip().lower().replace(" ", "_"))
 
-            # Save to SQLite Knowledge Graph
-            hillock.kg.update_relation(sub, norm_pred, obj)
-
-            # Update Hebbian Plasticity associations
-            hillock.plasticity.update_associations({sub, obj})
+            extracted_relations.append((sub, norm_pred, obj))
+            active_entities_to_update.add(sub)
+            active_entities_to_update.add(obj)
 
             # Allocate / update HDC Hypervectors
             hillock.hdc.get_or_allocate_hypervector(sub)
             hillock.hdc.get_or_allocate_hypervector(obj)
 
-            extracted_relations.append((sub, norm_pred, obj))
             t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print(f"{t_stamp} [TALON EXTRACTED]: [{sub}] -[{norm_pred}]-> [{obj}]")
+
+        if extracted_relations:
+            hillock.kg.update_relations_batch(extracted_relations)
+            hillock.plasticity.update_associations(active_entities_to_update)
 
     else:
         print(f"Hillock [INGESTOR]: TALON Engine unavailable. Falling back to legacy parsing...")
@@ -136,6 +138,15 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
         ram_p = psutil.virtual_memory().percent
         specs_str = f" | CPU: {cpu_p:.1f}%, RAM: {ram_p:.1f}%"
 
+    timing_stats = {
+        "load_and_first_extraction_time": cold_start_time,
+        "pure_extraction_time": pure_extraction_time,
+        "pure_rate": pure_rate,
+        "total_time": total_time,
+        "total_sentences": sentences_count,
+        "extracted_triples": len(extracted_relations)
+    }
+
     summary = (
         f"\n"
         f"========================================================\n"
@@ -150,4 +161,4 @@ def ingest_document_parallel(file_path: str, hillock) -> str:
         f"  * Total Processing Time      : {total_time:.2f} seconds\n"
         f"========================================================"
     )
-    return summary
+    return summary, timing_stats
