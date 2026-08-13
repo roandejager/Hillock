@@ -91,7 +91,6 @@ DEFAULT_PREDICATE_TAXONOMY = [
 ]
 
 # Type-Constrained Schema Validation Matrix for v0.4 (#15)
-# Maps all ~50 Wikidata predicates to allowed Head (Subject) and Tail (Object) entity types.
 ANY_ENTITY = {"PERSON", "GPE", "LOC", "ORG", "FAC", "PRODUCT", "WORK_OF_ART", "EVENT", "LAW", "NORP", "DATE", "ENTITY", "CONCEPT"}
 
 PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
@@ -163,6 +162,12 @@ PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
     "operated_by": {"head": {"FAC", "ORG", "PRODUCT", "GPE", "LOC"}, "tail": {"PERSON", "ORG"}}
 }
 
+# Whitelist of Symmetric Predicates (v0.4 #15)
+# Relations where (A, P, B) <=> (B, P, A)
+SYMMETRIC_PREDICATES: Set[str] = {
+    "collaborated_with", "worked_with", "partnered_with", "spouse_of"
+}
+
 
 def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) -> bool:
     """O(1) Schema Validator checking if candidate head/tail entity types match predicate constraints."""
@@ -173,6 +178,36 @@ def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) ->
     head_valid = (head_type in allowed["head"]) or ("ENTITY" in allowed["head"])
     tail_valid = (tail_type in allowed["tail"]) or ("ENTITY" in allowed["tail"])
     return head_valid and tail_valid
+
+
+def get_canonical_triple_key(subject: str, predicate: str, object_: str) -> Tuple[str, str, str]:
+    """
+    Returns a canonical deduplication key for SPO triples.
+    For symmetric relations (e.g. collaborated_with), (A, P, B) and (B, P, A) map to (min(A,B), P, max(A,B)).
+    For non-symmetric relations (e.g. born_in), (A, P, B) remains (A, P, B).
+    """
+    s_clean = subject.strip().lower()
+    p_clean = predicate.strip().lower()
+    o_clean = object_.strip().lower()
+
+    if p_clean in SYMMETRIC_PREDICATES:
+        sorted_entities = sorted([s_clean, o_clean])
+        return (sorted_entities[0], p_clean, sorted_entities[1])
+    else:
+        return (s_clean, p_clean, o_clean)
+
+
+def is_inverted_asymmetric_pair(subject: str, predicate: str, object_: str, seen_keys: Set[Tuple[str, str, str]]) -> bool:
+    """
+    Checks if an inverted pair (object, predicate, subject) already exists in seen_keys for a non-symmetric relation.
+    Returns True if it is an invalid inverted duplicate that should be purged.
+    """
+    p_clean = predicate.strip().lower()
+    if p_clean in SYMMETRIC_PREDICATES:
+        return False
+
+    inverted_key = (object_.strip().lower(), p_clean, subject.strip().lower())
+    return inverted_key in seen_keys
 
 
 def clean_entity_text(text: str) -> str:
@@ -327,25 +362,6 @@ class ZeroShotRelationExtractor:
         self.device = device
         self.model = None
 
-    def load_model(self) -> bool:
-        if GLiREL is None:
-            logger.error("glirel library is not installed.")
-            return False
-
-        if self.model is not None:
-            return True
-
-        try:
-            logger.info(f"Loading GLiREL Large Model '{self.model_name}' on {self.device}...")
-            self.model = GLiREL.from_pretrained(self.model_name)
-            if hasattr(self.model, "to"):
-                self.model.to(self.device)
-            logger.info("GLiREL Large Model loaded successfully!")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to load GLiREL model: {e}")
-            return False
-
     def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.42) -> List[Dict[str, str]]:
         if self.model is None:
             if not self.load_model():
@@ -411,6 +427,25 @@ class ZeroShotRelationExtractor:
         except Exception as e:
             logger.error(f"GLiREL extraction error on sentence '{sentence}': {e}")
             return []
+
+    def load_model(self) -> bool:
+        if GLiREL is None:
+            logger.error("glirel library is not installed.")
+            return False
+
+        if self.model is not None:
+            return True
+
+        try:
+            logger.info(f"Loading GLiREL Large Model '{self.model_name}' on {self.device}...")
+            self.model = GLiREL.from_pretrained(self.model_name)
+            if hasattr(self.model, "to"):
+                self.model.to(self.device)
+            logger.info("GLiREL Large Model loaded successfully!")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load GLiREL model: {e}")
+            return False
 
 
 class TalonEngine:
