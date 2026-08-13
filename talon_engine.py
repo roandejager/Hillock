@@ -1,6 +1,6 @@
 """
 TALON (Tensor-Accelerated Local Ontology Network)
-Engine Module - v0.2.4 CUDA Tensor Batching & Sub-Second Ingestion
+Engine Module - v0.4 Precision Extraction & Type-Constrained Schema Validation
 
 Architect: Roan de Jager (Hillock Memory Engine)
 """
@@ -9,8 +9,9 @@ import os
 import re
 import time
 import logging
+import unicodedata
 import numpy as np
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set
 
 # Disable HuggingFace Windows Symlink Warning
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
@@ -90,15 +91,165 @@ DEFAULT_PREDICATE_TAXONOMY = [
     "migrated_to", "moved_to", "resided_in", "patented", "manufactured", "operated_by"
 ]
 
+# Type-Constrained Schema Validation Matrix for v0.4 (#15)
+ANY_ENTITY = {"PERSON", "GPE", "LOC", "ORG", "FAC", "PRODUCT", "WORK_OF_ART", "EVENT", "LAW", "NORP", "DATE", "ENTITY", "CONCEPT"}
+
+PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
+    # Person -> Location / Geopolitical
+    "born_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "died_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "place_of_birth": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "place_of_death": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "ORG", "NORP", "ENTITY"}},
+    "country_of_citizenship": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "NORP", "ENTITY"}},
+    "migrated_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+    "moved_to": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+    "resided_in": {"head": {"PERSON"}, "tail": {"GPE", "LOC", "FAC", "NORP", "ENTITY"}},
+
+    # Person -> Person
+    "collaborated_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "worked_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "partnered_with": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "spouse_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "child_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "parent_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "student_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "teacher_of": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "successor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "predecessor_to": {"head": {"PERSON"}, "tail": {"PERSON"}},
+    "influenced_by": {"head": {"PERSON"}, "tail": {"PERSON"}},
+
+    # Person / Org -> Work / Concept / Machine / Product
+    "discovered": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "co_invented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "developed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "designed": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "created": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "cracked": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "authored": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "wrote": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "published": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "formulated": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "proposed": {"head": {"PERSON"}, "tail": {"WORK_OF_ART", "PRODUCT", "EVENT", "LAW", "CONCEPT", "ENTITY"}},
+    "patented": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "PRODUCT", "FAC", "CONCEPT", "ENTITY"}},
+    "manufactured": {"head": {"PERSON", "ORG"}, "tail": {"PRODUCT", "FAC", "WORK_OF_ART", "ENTITY"}},
+
+    # Person / Org -> Organization / Institution / Facility
+    "founded": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+    "educated_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "studied_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "employed_by": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "worked_at": {"head": {"PERSON"}, "tail": {"ORG", "FAC", "GPE"}},
+    "member_of": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+    "affiliated_with": {"head": {"PERSON", "ORG"}, "tail": {"ORG", "FAC", "GPE"}},
+
+    # Person / Org -> Award / Honor
+    "award_received": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+    "won": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+    "nominated_for": {"head": {"PERSON", "ORG"}, "tail": {"WORK_OF_ART", "EVENT", "ENTITY", "CONCEPT"}},
+
+    # Location -> Location / Facility / Organization
+    "capital_of": {"head": {"GPE", "LOC", "FAC"}, "tail": {"GPE", "LOC"}},
+    "located_in": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC"}},
+    "headquartered_in": {"head": {"ORG", "FAC"}, "tail": {"GPE", "LOC", "FAC"}},
+    "contains": {"head": {"GPE", "LOC", "FAC", "ORG"}, "tail": {"GPE", "LOC", "FAC", "ORG"}},
+    "has_part": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "part_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+
+    # Abstract / Hierarchy / Concept
+    "field_of_work": {"head": {"PERSON", "ORG"}, "tail": {"CONCEPT", "WORK_OF_ART", "PRODUCT", "ENTITY"}},
+    "subclass_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "instance_of": {"head": ANY_ENTITY, "tail": ANY_ENTITY},
+    "operated_by": {"head": {"FAC", "ORG", "PRODUCT", "GPE", "LOC"}, "tail": {"PERSON", "ORG"}}
+}
+
+# Whitelist of Symmetric Predicates (v0.4 #15)
+SYMMETRIC_PREDICATES: Set[str] = {
+    "collaborated_with", "worked_with", "partnered_with", "spouse_of"
+}
+
+# Precompiled High-Precision Regexes for Entity Sanitization (v0.4 #15)
+POSSESSIVE_RE = re.compile(r"(?<=\w)['’]s\b|(?<=s)['’]\b", re.UNICODE)
+TRAILING_POSSESSIVE_SUFFIX_RE = re.compile(r"[\s_]+s$", re.IGNORECASE)
+TRAILING_VERB_RE = re.compile(
+    r"[\s_]+(collaborated|built|studied|worked|discovered|designed|developed|cracked|authored|wrote|published|formulated|proposed|patented|founded|created)$",
+    re.IGNORECASE
+)
+PREPOSITION_TAIL_RE = re.compile(
+    r"[\s_]+(under|before|to|in|at|by|of|where|while|with|for|from|on)$",
+    re.IGNORECASE
+)
+
+
+def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) -> bool:
+    """O(1) Schema Validator checking if candidate head/tail entity types match predicate constraints."""
+    allowed = PREDICATE_SCHEMA.get(predicate)
+    if not allowed:
+        return True  # Fallback to allow unlisted custom predicates
+
+    head_valid = (head_type in allowed["head"]) or ("ENTITY" in allowed["head"])
+    tail_valid = (tail_type in allowed["tail"]) or ("ENTITY" in allowed["tail"])
+    return head_valid and tail_valid
+
+
+def get_canonical_triple_key(subject: str, predicate: str, object_: str) -> Tuple[str, str, str]:
+    """
+    Returns a canonical deduplication key for SPO triples.
+    For symmetric relations (e.g. collaborated_with), (A, P, B) and (B, P, A) map to (min(A,B), P, max(A,B)).
+    For non-symmetric relations (e.g. born_in), (A, P, B) remains (A, P, B).
+    """
+    s_clean = subject.strip().lower()
+    p_clean = predicate.strip().lower()
+    o_clean = object_.strip().lower()
+
+    if p_clean in SYMMETRIC_PREDICATES:
+        sorted_entities = sorted([s_clean, o_clean])
+        return (sorted_entities[0], p_clean, sorted_entities[1])
+    else:
+        return (s_clean, p_clean, o_clean)
+
+
+def is_inverted_asymmetric_pair(subject: str, predicate: str, object_: str, seen_keys: Set[Tuple[str, str, str]]) -> bool:
+    """
+    Checks if an inverted pair (object, predicate, subject) already exists in seen_keys for a non-symmetric relation.
+    Returns True if it is an invalid inverted duplicate that should be purged.
+    """
+    p_clean = predicate.strip().lower()
+    if p_clean in SYMMETRIC_PREDICATES:
+        return False
+
+    inverted_key = (object_.strip().lower(), p_clean, subject.strip().lower())
+    return inverted_key in seen_keys
+
 
 def clean_entity_text(text: str) -> str:
-    """Strips trailing punctuation, verbs, prepositions, and stopwords from entity spans."""
-    text = re.sub(r"[^\w\s-]", "", text).strip()
-    words = text.split()
+    """High-precision entity span sanitization engine (v0.4 #15)."""
+    if not text:
+        return ""
+
+    # 1. Unicode Normalization
+    cleaned = unicodedata.normalize("NFC", text).strip()
+
+    # 2. Strip possessives ('s, ’s, _s)
+    cleaned = POSSESSIVE_RE.sub("", cleaned)
+    cleaned = TRAILING_POSSESSIVE_SUFFIX_RE.sub("", cleaned)
+
+    # 3. Iteratively strip trailing action verbs and prepositional tails
+    prev_len = -1
+    while len(cleaned) != prev_len:
+        prev_len = len(cleaned)
+        cleaned = TRAILING_VERB_RE.sub("", cleaned).strip()
+        cleaned = PREPOSITION_TAIL_RE.sub("", cleaned).strip()
+
+    # 4. Remove leading/trailing non-alphanumeric characters
+    cleaned = re.sub(r"^[^\w]+|[^\w]+$", "", cleaned).strip()
+
+    # 5. Token-level stopword / generic noise filtering
+    words = [w for w in re.split(r"[\s_]+", cleaned) if w]
     stop_words = {
-        "was", "is", "were", "are", "worked", "discovered", "colleague", "illustrious",
-        "early", "theoretical", "critical", "analyzed", "work", "cracked", "designed",
-        "developed", "born", "in", "at", "by", "of", "a", "an", "the", "and", "where", "while"
+        "was", "is", "were", "are", "colleague", "illustrious",
+        "early", "theoretical", "critical", "analyzed", "a", "an", "the",
+        "and", "where", "while", "childhood", "years", "first", "practical"
     }
 
     while words and words[0].lower() in stop_words:
@@ -243,6 +394,101 @@ class ZeroShotRelationExtractor:
         self.device = device
         self.model = None
 
+    def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.42) -> List[Dict[str, str]]:
+        if self.model is None:
+            if not self.load_model():
+                return []
+
+        global nlp
+        if nlp is None:
+            logger.error("SpaCy model 'en_core_web_sm' is not available.")
+            return []
+
+        try:
+            doc = nlp(sentence)
+            tokens = [token.text for token in doc]
+
+            ner = []
+            entity_type_map = {}
+
+            for ent in doc.ents:
+                clean_name = clean_entity_text(ent.text)
+                if clean_name and len(clean_name) > 1:
+                    ner.append([ent.start, ent.end, ent.label_, clean_name])
+                    entity_type_map[clean_name.lower()] = ent.label_
+
+            if len(ner) < 2:
+                ner = []
+                for chunk in doc.noun_chunks:
+                    clean_chunk = clean_entity_text(chunk.text)
+                    if clean_chunk and len(clean_chunk) > 1:
+                        ner.append([chunk.start, chunk.end, "ENTITY", clean_chunk])
+                        entity_type_map[clean_chunk.lower()] = "ENTITY"
+
+            if len(ner) < 2:
+                return []
+
+            results = self.model.predict_relations(
+                tokens,
+                candidate_labels,
+                threshold=threshold,
+                ner=ner,
+                top_k=1
+            )
+
+            extracted_triples = []
+            seen_keys = set()
+
+            for item in results:
+                head_raw = item.get("head_text", "")
+                tail_raw = item.get("tail_text", "")
+
+                head_text = " ".join(head_raw) if isinstance(head_raw, list) else str(head_raw)
+                tail_text = " ".join(tail_raw) if isinstance(tail_raw, list) else str(tail_raw)
+
+                clean_head = clean_entity_text(head_text)
+                clean_tail = clean_entity_text(tail_text)
+                label = item.get("label", "").replace(" ", "_")
+
+                if not clean_head or not clean_tail or not label:
+                    continue
+
+                if clean_head.lower() == clean_tail.lower():
+                    continue
+
+                # Fetch head & tail entity types for O(1) schema validation
+                head_type = entity_type_map.get(clean_head.lower(), "ENTITY")
+                tail_type = entity_type_map.get(clean_tail.lower(), "ENTITY")
+
+                # 1. Type-Constrained Schema Validation (v0.4 #15)
+                if not is_valid_predicate_schema(label, head_type, tail_type):
+                    logger.debug(f"Schema violation dropped: [{clean_head} ({head_type})] -[{label}]-> [{clean_tail} ({tail_type})]")
+                    continue
+
+                # 2. Inverted Asymmetric Pair Purging (v0.4 #15)
+                if is_inverted_asymmetric_pair(clean_head, label, clean_tail, seen_keys):
+                    logger.debug(f"Inverted asymmetric pair dropped: [{clean_head}] -[{label}]-> [{clean_tail}]")
+                    continue
+
+                # 3. Canonical Deduplication Key Check (v0.4 #15)
+                canon_key = get_canonical_triple_key(clean_head, label, clean_tail)
+                if canon_key in seen_keys:
+                    continue
+
+                seen_keys.add(canon_key)
+                seen_keys.add((clean_head.lower(), label.lower(), clean_tail.lower()))
+
+                extracted_triples.append({
+                    "subject": clean_head,
+                    "predicate": label,
+                    "object": clean_tail
+                })
+
+            return extracted_triples
+        except Exception as e:
+            logger.error(f"GLiREL extraction error on sentence '{sentence}': {e}")
+            return []
+
     def load_model(self) -> bool:
         if GLiREL is None:
             logger.error("glirel library is not installed.")
@@ -261,72 +507,6 @@ class ZeroShotRelationExtractor:
         except Exception as e:
             logger.error(f"Failed to load GLiREL model: {e}")
             return False
-
-    def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.42) -> List[Dict[str, str]]:
-        if self.model is None:
-            if not self.load_model():
-                return []
-
-        global nlp
-        if nlp is None:
-            logger.error("SpaCy model 'en_core_web_sm' is not available.")
-            return []
-
-        try:
-            doc = nlp(sentence)
-            tokens = [token.text for token in doc]
-
-            ner = []
-            for ent in doc.ents:
-                clean_name = clean_entity_text(ent.text)
-                if clean_name and len(clean_name) > 1:
-                    ner.append([ent.start, ent.end, ent.label_, clean_name])
-
-            if len(ner) < 2:
-                ner = []
-                for chunk in doc.noun_chunks:
-                    clean_chunk = clean_entity_text(chunk.text)
-                    if clean_chunk and len(clean_chunk) > 1:
-                        ner.append([chunk.start, chunk.end, "ENTITY", clean_chunk])
-
-            if len(ner) < 2:
-                return []
-
-            results = self.model.predict_relations(
-                tokens,
-                candidate_labels,
-                threshold=threshold,
-                ner=ner,
-                top_k=1
-            )
-
-            extracted_triples = []
-            seen_pairs = set()
-
-            for item in results:
-                head_raw = item.get("head_text", "")
-                tail_raw = item.get("tail_text", "")
-
-                head_text = " ".join(head_raw) if isinstance(head_raw, list) else str(head_raw)
-                tail_text = " ".join(tail_raw) if isinstance(tail_raw, list) else str(tail_raw)
-
-                clean_head = clean_entity_text(head_text)
-                clean_tail = clean_entity_text(tail_text)
-                label = item.get("label", "").replace(" ", "_")
-
-                pair_key = (clean_head.lower(), label.lower(), clean_tail.lower())
-                if clean_head and clean_tail and label and (clean_head.lower() != clean_tail.lower()) and pair_key not in seen_pairs:
-                    seen_pairs.add(pair_key)
-                    extracted_triples.append({
-                        "subject": clean_head,
-                        "predicate": label,
-                        "object": clean_tail
-                    })
-
-            return extracted_triples
-        except Exception as e:
-            logger.error(f"GLiREL extraction error on sentence '{sentence}': {e}")
-            return []
 
 
 class TalonEngine:
