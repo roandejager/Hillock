@@ -9,6 +9,7 @@ import os
 import re
 import time
 import logging
+import unicodedata
 import numpy as np
 from typing import List, Dict, Tuple, Optional, Set
 
@@ -163,10 +164,21 @@ PREDICATE_SCHEMA: Dict[str, Dict[str, Set[str]]] = {
 }
 
 # Whitelist of Symmetric Predicates (v0.4 #15)
-# Relations where (A, P, B) <=> (B, P, A)
 SYMMETRIC_PREDICATES: Set[str] = {
     "collaborated_with", "worked_with", "partnered_with", "spouse_of"
 }
+
+# Precompiled High-Precision Regexes for Entity Sanitization (v0.4 #15)
+POSSESSIVE_RE = re.compile(r"(?<=\w)['’]s\b|(?<=s)['’]\b", re.UNICODE)
+TRAILING_POSSESSIVE_SUFFIX_RE = re.compile(r"[\s_]+s$", re.IGNORECASE)
+TRAILING_VERB_RE = re.compile(
+    r"[\s_]+(collaborated|built|studied|worked|discovered|designed|developed|cracked|authored|wrote|published|formulated|proposed|patented|founded|created)$",
+    re.IGNORECASE
+)
+PREPOSITION_TAIL_RE = re.compile(
+    r"[\s_]+(under|before|to|in|at|by|of|where|while|with|for|from|on)$",
+    re.IGNORECASE
+)
 
 
 def is_valid_predicate_schema(predicate: str, head_type: str, tail_type: str) -> bool:
@@ -211,13 +223,33 @@ def is_inverted_asymmetric_pair(subject: str, predicate: str, object_: str, seen
 
 
 def clean_entity_text(text: str) -> str:
-    """Strips trailing punctuation, verbs, prepositions, and stopwords from entity spans."""
-    text = re.sub(r"[^\w\s-]", "", text).strip()
-    words = text.split()
+    """High-precision entity span sanitization engine (v0.4 #15)."""
+    if not text:
+        return ""
+
+    # 1. Unicode Normalization
+    cleaned = unicodedata.normalize("NFC", text).strip()
+
+    # 2. Strip possessives ('s, ’s, _s)
+    cleaned = POSSESSIVE_RE.sub("", cleaned)
+    cleaned = TRAILING_POSSESSIVE_SUFFIX_RE.sub("", cleaned)
+
+    # 3. Iteratively strip trailing action verbs and prepositional tails
+    prev_len = -1
+    while len(cleaned) != prev_len:
+        prev_len = len(cleaned)
+        cleaned = TRAILING_VERB_RE.sub("", cleaned).strip()
+        cleaned = PREPOSITION_TAIL_RE.sub("", cleaned).strip()
+
+    # 4. Remove leading/trailing non-alphanumeric characters
+    cleaned = re.sub(r"^[^\w]+|[^\w]+$", "", cleaned).strip()
+
+    # 5. Token-level stopword / generic noise filtering
+    words = [w for w in re.split(r"[\s_]+", cleaned) if w]
     stop_words = {
-        "was", "is", "were", "are", "worked", "discovered", "colleague", "illustrious",
-        "early", "theoretical", "critical", "analyzed", "work", "cracked", "designed",
-        "developed", "born", "in", "at", "by", "of", "a", "an", "the", "and", "where", "while"
+        "was", "is", "were", "are", "colleague", "illustrious",
+        "early", "theoretical", "critical", "analyzed", "a", "an", "the",
+        "and", "where", "while", "childhood", "years", "first", "practical"
     }
 
     while words and words[0].lower() in stop_words:
