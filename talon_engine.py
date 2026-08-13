@@ -409,10 +409,13 @@ class ZeroShotRelationExtractor:
             tokens = [token.text for token in doc]
 
             ner = []
+            entity_type_map = {}
+
             for ent in doc.ents:
                 clean_name = clean_entity_text(ent.text)
                 if clean_name and len(clean_name) > 1:
                     ner.append([ent.start, ent.end, ent.label_, clean_name])
+                    entity_type_map[clean_name.lower()] = ent.label_
 
             if len(ner) < 2:
                 ner = []
@@ -420,6 +423,7 @@ class ZeroShotRelationExtractor:
                     clean_chunk = clean_entity_text(chunk.text)
                     if clean_chunk and len(clean_chunk) > 1:
                         ner.append([chunk.start, chunk.end, "ENTITY", clean_chunk])
+                        entity_type_map[clean_chunk.lower()] = "ENTITY"
 
             if len(ner) < 2:
                 return []
@@ -433,7 +437,7 @@ class ZeroShotRelationExtractor:
             )
 
             extracted_triples = []
-            seen_pairs = set()
+            seen_keys = set()
 
             for item in results:
                 head_raw = item.get("head_text", "")
@@ -446,14 +450,39 @@ class ZeroShotRelationExtractor:
                 clean_tail = clean_entity_text(tail_text)
                 label = item.get("label", "").replace(" ", "_")
 
-                pair_key = (clean_head.lower(), label.lower(), clean_tail.lower())
-                if clean_head and clean_tail and label and (clean_head.lower() != clean_tail.lower()) and pair_key not in seen_pairs:
-                    seen_pairs.add(pair_key)
-                    extracted_triples.append({
-                        "subject": clean_head,
-                        "predicate": label,
-                        "object": clean_tail
-                    })
+                if not clean_head or not clean_tail or not label:
+                    continue
+
+                if clean_head.lower() == clean_tail.lower():
+                    continue
+
+                # Fetch head & tail entity types for O(1) schema validation
+                head_type = entity_type_map.get(clean_head.lower(), "ENTITY")
+                tail_type = entity_type_map.get(clean_tail.lower(), "ENTITY")
+
+                # 1. Type-Constrained Schema Validation (v0.4 #15)
+                if not is_valid_predicate_schema(label, head_type, tail_type):
+                    logger.debug(f"Schema violation dropped: [{clean_head} ({head_type})] -[{label}]-> [{clean_tail} ({tail_type})]")
+                    continue
+
+                # 2. Inverted Asymmetric Pair Purging (v0.4 #15)
+                if is_inverted_asymmetric_pair(clean_head, label, clean_tail, seen_keys):
+                    logger.debug(f"Inverted asymmetric pair dropped: [{clean_head}] -[{label}]-> [{clean_tail}]")
+                    continue
+
+                # 3. Canonical Deduplication Key Check (v0.4 #15)
+                canon_key = get_canonical_triple_key(clean_head, label, clean_tail)
+                if canon_key in seen_keys:
+                    continue
+
+                seen_keys.add(canon_key)
+                seen_keys.add((clean_head.lower(), label.lower(), clean_tail.lower()))
+
+                extracted_triples.append({
+                    "subject": clean_head,
+                    "predicate": label,
+                    "object": clean_tail
+                })
 
             return extracted_triples
         except Exception as e:
