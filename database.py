@@ -104,23 +104,32 @@ class SQLiteKnowledgeGraph:
 
     def update_relation(self, source_id: str, predicate: str, new_target_id: str,
                         source_type: str = "Generic", target_type: str = "Generic") -> None:
-        src_key = source_id.strip().replace(" ", "_")
-        tgt_key = new_target_id.strip().replace(" ", "_")
+        """Single relation insertion method for conversational turns."""
+        self.update_relations_batch([(source_id, predicate, new_target_id)], source_type, target_type)
 
-        # Functional predicates that can only have one single target value
+    def update_relations_batch(self, triples: List[Tuple[str, str, str]],
+                               source_type: str = "Generic", target_type: str = "Generic") -> None:
+        """Micro-batched relation insertion executing inside a single SQL transaction to eliminate disk locks."""
+        if not triples:
+            return
+
         SINGLE_VALUED_PREDICATES = {"born_in", "died_in", "capital_of", "place_of_birth", "place_of_death"}
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
-            cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
-            cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
+            cursor.execute("BEGIN TRANSACTION;")
+            for source_id, predicate, new_target_id in triples:
+                src_key = source_id.strip().replace(" ", "_")
+                tgt_key = new_target_id.strip().replace(" ", "_")
 
-            # Fixed v0.2.3: Only delete single-valued functional relations; allow multi-valued relations (like collaborated_with)
-            if predicate in SINGLE_VALUED_PREDICATES:
-                cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+                cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
+                cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
 
-            cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
+                if predicate in SINGLE_VALUED_PREDICATES:
+                    cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+
+                cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
             conn.commit()
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:

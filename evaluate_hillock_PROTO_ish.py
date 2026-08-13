@@ -1,7 +1,7 @@
 """
 Hillock Scientific Evaluation Harness (Long-Form Research Edition)
 Performs automated database seeding, sequential query testing,
-and outputs performance metrics: Precision, Recall, Retrieval Accuracy, and Gate Accuracy.
+and outputs performance metrics with cold-start vs pure inference breakdown.
 """
 
 import os
@@ -16,9 +16,7 @@ from main import IntegratedHillock
 logging.basicConfig(level=logging.ERROR)
 
 def generate_test_assets():
-    """Auto-generates a long, complex, and highly rigorous test dataset to evaluate Hillock."""
-
-    # 30 complex, multi-subject sentences with distractors, negatives, and diverse tenses
+    """Auto-generates test dataset to evaluate Hillock."""
     facts = (
         "Marie Curie was a brilliant physicist who spent her early childhood years in Warsaw, Poland before migrating to France.\n"
         "During her illustrious career, she discovered radioactivity and collaborated closely with Albert Einstein, who was born in Germany.\n"
@@ -55,7 +53,6 @@ def generate_test_assets():
     )
 
     questions = [
-        # --- ANSWERABLE QUESTIONS (20 total) ---
         {"question": "Where was Marie Curie born?", "expected_subject": "Marie_Curie", "expected_predicate": "born_in", "expected_object": "Poland", "answerable": True},
         {"question": "Where was Alan Turing born?", "expected_subject": "Alan_Turing", "expected_predicate": "born_in", "expected_object": "London", "answerable": True},
         {"question": "Where was Albert Einstein born?", "expected_subject": "Albert_Einstein", "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
@@ -76,21 +73,18 @@ def generate_test_assets():
         {"question": "Who did Bertrand Russell collaborate with?", "expected_subject": "Bertrand_Russell", "expected_predicate": "collaborated_with", "expected_object": "Alfred_North_Whitehead", "answerable": True},
         {"question": "Where was Guglielmo Marconi born?", "expected_subject": "Guglielmo_Marconi", "expected_predicate": "born_in", "expected_object": "Italy", "answerable": True},
         {"question": "Who did Aristotle study under?", "expected_subject": "Aristotle", "expected_predicate": "collaborated_with", "expected_object": "Plato", "answerable": True},
-
-        # --- UNANSWERABLE QUESTIONS / HARD NEGATIVES (10 total) ---
         {"question": "Who is Turing?", "answerable": False},
-        {"question": "Did Nikola Tesla work with Isaac Newton?", "answerable": False}, # Newton is 1600s, Tesla is 1800s
-        {"question": "What did Albert Einstein discover?", "answerable": False},      # Curie discovered radioactivity, Einstein didn't!
-        {"question": "Where was Thomas Edison born?", "answerable": False},           # Menlo Park is active work, birth not mentioned
-        {"question": "Who cracked Enigma?", "answerable": False},                     # Enigma is target object, testing link-routing direction
-        {"question": "What did Richard Feynman discover?", "answerable": False},      # Text says made contributions, did not discover
-        {"question": "What did Claude Shannon patent?", "answerable": False},         # Founded information theory, patents not mentioned
-        {"question": "Where was Plato born?", "answerable": False},                   # Studied in Athens under him, but his birthplace is omitted
-        {"question": "Who did Heinrich Hertz collaborate with?", "answerable": False}, # Marconi built on his discoveries, but no active collaboration
-        {"question": "What did Johannes Kepler discover in Italy?", "answerable": False} # Kepler was in Germany, Galileo was in Italy
+        {"question": "Did Nikola Tesla work with Isaac Newton?", "answerable": False},
+        {"question": "What did Albert Einstein discover?", "answerable": False},
+        {"question": "Where was Thomas Edison born?", "answerable": False},
+        {"question": "Who cracked Enigma?", "answerable": False},
+        {"question": "What did Richard Feynman discover?", "answerable": False},
+        {"question": "What did Claude Shannon patent?", "answerable": False},
+        {"question": "Where was Plato born?", "answerable": False},
+        {"question": "Who did Heinrich Hertz collaborate with?", "answerable": False},
+        {"question": "What did Johannes Kepler discover in Italy?", "answerable": False}
     ]
 
-    # Force write fresh copies of the expanded files (safely in root directory)
     with open("eval_facts.txt", "w", encoding="utf-8") as f:
         f.write(facts)
 
@@ -100,37 +94,32 @@ def generate_test_assets():
 def run_evaluation():
     db_file = "hillock_eval.db"
 
-    # 1. Clean up old evaluation DB physically and logically to guarantee pristine starting environment
     if os.path.exists(db_file):
         try:
             os.remove(db_file)
             print("[RESET] Cleaned old evaluation database file from disk.")
         except PermissionError:
-            print("Error: Close all active SQL connection tools before running evaluation.")
+            print("Error: Close active SQL tools before running evaluation.")
             return
 
     print("========================================================")
     print("        HILLOCK SCIENTIFIC BENCHMARKING PIPELINE        ")
     print("========================================================")
 
-    # Initialize fresh Hillock instance (this seeds default knowledge)
     hillock = IntegratedHillock(db_file)
-    hillock.kg.clear_and_reinitialize() # Extra safe double-wipe and seed re-run
+    hillock.kg.clear_and_reinitialize()
 
-    # 2. RUN AUTONOMOUS INGESTION
     print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt'...")
 
-    hillock.ollama_model = "qwen2:1.5b"
-
     from ingestor import ingest_document_parallel
-    ingest_result = ingest_document_parallel("eval_facts.txt", hillock)
-    print(f" -> {ingest_result}")
+    res = ingest_document_parallel("eval_facts.txt", hillock)
+    if isinstance(res, tuple):
+        summary_str, timing_stats = res
+    else:
+        summary_str, timing_stats = res, {}
 
-    hillock.ollama_model = "qwen3:latest"
+    print(summary_str)
 
-
-    # 3. EVALUATE EXTRACTION (Precision & Recall)
-    # Target relations in our upgraded long-form eval_facts.txt (Total: 22 targets)
     target_facts = {
         ("Marie_Curie", "born_in", "Poland"),
         ("Alan_Turing", "born_in", "London"),
@@ -156,7 +145,6 @@ def run_evaluation():
         ("Aristotle", "collaborated_with", "Plato")
     }
 
-    # Fetch all active relations from SQLite
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT source_id, predicate, target_id FROM relations")
@@ -169,7 +157,6 @@ def run_evaluation():
     precision = (len(correct_extractions) / total_extracted) if total_extracted > 0 else 0.0
     recall = (len(correct_extractions) / total_targets) if total_targets > 0 else 0.0
 
-    # 4. RUN RETRIEVAL BENCHMARK
     print("\n[Step 2/3]: Querying the Gated Retriever...")
     with open("eval_questions.json", "r", encoding="utf-8") as f:
         questions = json.load(f)
@@ -187,26 +174,17 @@ def run_evaluation():
         q = q_data["question"]
         is_answerable = q_data["answerable"]
 
-        # Track linked entities for debug log
         active_ents = hillock.link_entities(q)
-
-        # Execute turn
         reply, primed_info, hdc_fingerprint, mode = hillock.execute_chat_turn(q)
 
         status = "UNKNOWN"
-        # Evaluate Gate Accuracy & Retrieval
         if is_answerable:
             if mode in ["RENDER_SUCCESS", "RENDER_FALLBACK"]:
-                # Gate correctly opened. Now check if the resolved fact is correct.
                 candidate_facts = hillock.kg.get_all_facts_for_entities(active_ents)
-
-                # Uses select_answering_facts list extraction
                 matched_list = hillock.select_answering_facts(q, candidate_facts)
 
                 if matched_list:
-                    # Validate against the top-matching fact
                     matched = matched_list[0]
-                    # Normalize to lowercase and check if the expected object is IN the extracted object (e.g., "hungary" in "budapest_hungary")
                     if (matched[0].lower() == q_data["expected_subject"].lower() and
                             matched[1].lower() == q_data["expected_predicate"].lower() and
                             q_data["expected_object"].lower() in matched[2].lower()):
@@ -232,50 +210,32 @@ def run_evaluation():
         actual_str = "Answered" if mode == "RENDER_SUCCESS" else "Blocked"
         print(f"{q:<40} | {expected_str:<8} | {actual_str:<10} | {status}")
 
-        # NERD LEVEL DIAGNOSTIC DEBUG INFO LOG (Only prints if entities were linked)
         if active_ents:
             print(f"  [DEBUG INFO FOR QUERY: '{q}']")
             print(f"    * Linked Entities: {list(active_ents)}")
 
-            # Print Hebbian weights trace
             if primed_info:
                 print(f"    * Synaptic Association Weights (Hebbian Engine):")
                 for node, weight in primed_info[:2]:
                     print(f"        - Path: [{list(active_ents)[0]} -> {node}] Strength: {weight:.4f}")
 
-            # Print HDC Context Fingerprint trace
             if hdc_fingerprint:
                 print(f"    * Context Fingerprint (Top HDC Reservoir Traces):")
                 for node, sim in hdc_fingerprint[:2]:
                     print(f"        - Active Echo: '{node:<15}' Cosine Similarity: {sim:.4f}")
 
-            # Print the Similarity Gating Table
             candidate_facts = hillock.kg.get_all_facts_for_entities(active_ents)
             if candidate_facts:
                 print(f"    * HDC Similarity Gate Evaluation Table:")
+                hdc_dim = getattr(hillock.hdc, 'D', getattr(hillock.hdc, 'd', 10000))
                 for s, p, o in candidate_facts:
-                    # Manually evaluate similarity outside of core engine for trace printing
-                    # Builds fact components matching select_answering_facts
                     s_resolved = hillock.resolve_entity_identity(s)
                     o_resolved = hillock.resolve_entity_identity(o)
-                    pred_keywords = [p.lower().replace("_", " ")]
-                    if p in ["collaborated_with", "work"]:
-                        pred_keywords.extend(["work", "worked", "with", "partner", "collaborated"])
-                    elif p in ["born_in", "bear"]:
-                        pred_keywords.extend(["born", "in", "birth"])
-                    elif p in ["discovered", "discover"]:
-                        pred_keywords.extend(["discover", "discovered", "found"])
-                    elif p in ["cracked", "crack"]:
-                        pred_keywords.extend(["crack", "cracked", "broke"])
+                    p_hv = hillock.hdc.resolve_predicate_hypervector(p)
 
-                    best_pred_word = p.lower()
-                    for kw in pred_keywords:
-                        if kw in set(re.sub(r"[^\w\s]", "", q).lower().split()):
-                            best_pred_word = kw
-                            break
+                    components = [s_resolved, o_resolved]
+                    fact_hv = p_hv.astype(np.int32).copy()
 
-                    components = [s_resolved, o_resolved, best_pred_word]
-                    fact_hv = np.zeros(hillock.hdc.d, dtype=np.int32)
                     for comp in set(components):
                         resolved_comp = hillock.resolve_entity_identity(comp)
                         if resolved_comp in hillock.hdc.codebook:
@@ -284,7 +244,7 @@ def run_evaluation():
                             fact_hv += hillock.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True)
 
                     query_tokens = set(re.sub(r"[^\w\s]", "", q).lower().split())
-                    query_hv = np.zeros(hillock.hdc.d, dtype=np.int32)
+                    query_hv = np.zeros(hdc_dim, dtype=np.int32)
                     for token in query_tokens:
                         resolved = hillock.resolve_entity_identity(token)
                         if resolved in hillock.hdc.codebook:
@@ -296,25 +256,31 @@ def run_evaluation():
                     f_norm = np.linalg.norm(fact_hv)
                     sim = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
 
-                    gate_status = "PASSED (GATE OPEN)" if sim >= 0.42 else "BLOCKED (GATE CLOSED)"
+                    gate_threshold = getattr(hillock.hdc, 'threshold', 0.72)
+                    gate_status = "PASSED (GATE OPEN)" if sim >= gate_threshold else "BLOCKED (GATE CLOSED)"
                     print(f"        - Fact: [{s} {p} {o}] Cosine Sim: {sim:.4f} -> {gate_status}")
             print("-" * 80)
 
     print("--------------------------------------------------------------------------------")
 
-    # 5. CALCULATE STATISTICAL SCORES
     retrieval_acc = correct_answers / len([q for q in questions if q["answerable"]])
     gate_acc = (correct_blocks + correct_answers) / len(questions)
 
+    load_time = timing_stats.get("load_and_first_extraction_time", 0.0)
+    pure_time = timing_stats.get("pure_extraction_time", 0.0)
+    pure_rate = timing_stats.get("pure_rate", 0.0)
+
     print("\n[Step 3/3]: Generating Research Performance Metrics:")
     print("--------------------------------------------------")
-    print(f"  * Extraction Precision : {precision*100:.1f}%  (Correctly structured factual nodes)")
-    print(f"  * Extraction Recall    : {recall*100:.1f}%  (Completeness of indexed relations)")
-    print(f"  * Retrieval Accuracy   : {retrieval_acc*100:.1f}%  (Factual accuracy on answerable queries)")
-    print(f"  * Gate Accuracy        : {gate_acc*100:.1f}%  (Hallucination defense rate)")
+    print(f"  * Cold-Start -> 1st Extraction : {load_time:.2f} seconds (Model Load Overhead)")
+    print(f"  * Pure Extraction Duration    : {pure_time:.2f} seconds")
+    print(f"  * Pure Extraction Rate        : {pure_rate:.1f} sent/sec")
+    print(f"  * Extraction Precision        : {precision*100:.1f}%")
+    print(f"  * Extraction Recall           : {recall*100:.1f}%")
+    print(f"  * Retrieval Accuracy          : {retrieval_acc*100:.1f}%")
+    print(f"  * Gate Accuracy               : {gate_acc*100:.1f}%")
     print("--------------------------------------------------")
 
-    # Clean up evaluation DB file cleanly
     if os.path.exists(db_file):
         try:
             os.remove(db_file)
