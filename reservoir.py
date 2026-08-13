@@ -124,6 +124,11 @@ class HyperdimensionalReservoir:
         self.vocab_book: Dict[str, np.ndarray] = {}
         self.state = np.zeros(self.D, dtype=np.float64)
 
+    @property
+    def d(self) -> int:
+        """Backward compatibility property returning hypervector dimension D."""
+        return self.D
+
     def get_or_allocate_hypervector(self, name_id: str, is_vocab_token: bool = False) -> np.ndarray:
         book = self.vocab_book if is_vocab_token else self.codebook
         if name_id not in book:
