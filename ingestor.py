@@ -1,5 +1,5 @@
 """
-Hillock Ingestor Module (TALON Integration - v0.2.4 / v0.3 Timing Refinement)
+Hillock Ingestor Module (TALON Integration - v0.4.1 Precision)
 Routes bulk document extractions through the TALON Engine.
 """
 
@@ -80,43 +80,55 @@ def ingest_document_parallel(file_path: str, hillock) -> Tuple[str, Dict[str, fl
     extracted_relations = []
     active_entities_to_update = set()
 
-    if talon is not None:
-        print(f"\nHillock [INGESTOR]: Routing '{os.path.basename(file_path)}' through TALON Engine (CUDA Accelerated)...")
-        triples = talon.process_document(raw_text)
+    if talon is None or talon.extractor.model is None:
+        missing_warning = (
+            "\n"
+            "========================================================\n"
+            "  ⚠️ WARNING: TALON EXTRACTION ENGINE IS UN-INSTALLED  \n"
+            "========================================================\n"
+            "  Required dependencies (glirel, fastcoref, spacy, torch) \n"
+            "  are missing or failed to initialize.\n\n"
+            "  Fix this by running:\n"
+            "    pip install -r requirements.txt\n"
+            "    python -m spacy download en_core_web_sm\n"
+            "========================================================\n"
+        )
+        print(missing_warning)
+        logger.error("Ingestion halted: TALON extraction stack is uninstalled or incomplete.")
+        return missing_warning, {}
 
-        for triple in triples:
-            sub_raw = triple.get("subject", "")
-            pred_raw = triple.get("predicate", "")
-            obj_raw = triple.get("object", "")
+    print(f"\nHillock [INGESTOR]: Routing '{os.path.basename(file_path)}' through TALON Engine (CUDA Accelerated)...")
+    triples = talon.process_document(raw_text)
 
-            if not sub_raw or not pred_raw or not obj_raw:
-                continue
+    for triple in triples:
+        sub_raw = triple.get("subject", "")
+        pred_raw = triple.get("predicate", "")
+        obj_raw = triple.get("object", "")
 
-            sub = hillock.resolve_entity_identity(sub_raw)
-            obj = hillock.resolve_entity_identity(obj_raw)
-            norm_pred = hillock.predicate_map.get(pred_raw.strip().lower(), pred_raw.strip().lower().replace(" ", "_"))
+        if not sub_raw or not pred_raw or not obj_raw:
+            continue
 
-            extracted_relations.append((sub, norm_pred, obj))
-            active_entities_to_update.add(sub)
-            active_entities_to_update.add(obj)
+        sub = hillock.resolve_entity_identity(sub_raw)
+        obj = hillock.resolve_entity_identity(obj_raw)
+        norm_pred = hillock.predicate_map.get(pred_raw.strip().lower(), pred_raw.strip().lower().replace(" ", "_"))
 
-            # Allocate / update HDC Hypervectors
-            hillock.hdc.get_or_allocate_hypervector(sub)
-            hillock.hdc.get_or_allocate_hypervector(obj)
+        extracted_relations.append((sub, norm_pred, obj))
+        active_entities_to_update.add(sub)
+        active_entities_to_update.add(obj)
 
-            t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{t_stamp} [TALON EXTRACTED]: [{sub}] -[{norm_pred}]-> [{obj}]")
+        # Allocate / update HDC Hypervectors
+        hillock.hdc.get_or_allocate_hypervector(sub)
+        hillock.hdc.get_or_allocate_hypervector(obj)
 
-        if extracted_relations:
-            hillock.kg.update_relations_batch(extracted_relations)
-            hillock.plasticity.update_associations(active_entities_to_update)
+        t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"{t_stamp} [TALON EXTRACTED]: [{sub}] -[{norm_pred}]-> [{obj}]")
 
-    else:
-        print(f"Hillock [INGESTOR]: TALON Engine unavailable. Falling back to legacy parsing...")
+    if extracted_relations:
+        hillock.kg.update_relations_batch(extracted_relations)
+        hillock.plasticity.update_associations(active_entities_to_update)
 
     t_end = time.perf_counter()
 
-    # Retrieve timing milestones from talon instance
     t_first = getattr(talon, "t_first_triple", None) if talon else None
     t_last = getattr(talon, "t_last_triple", None) if talon else None
 
