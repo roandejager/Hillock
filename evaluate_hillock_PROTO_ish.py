@@ -1,6 +1,6 @@
 """
-Hillock Scientific Evaluation Harness (Long-Form Research Edition - v0.3.2 Fast-Eval)
-Performs automated database seeding, sequential query testing,
+Hillock Scientific Evaluation Harness (Long-Form Research Edition - v0.5 Unseeded)
+Performs automated unseeded database ingestion, sequential query testing,
 and outputs performance metrics with sub-second fast-eval retrieval matching.
 """
 
@@ -92,6 +92,7 @@ def generate_test_assets():
     with open("eval_questions.json", "w", encoding="utf-8") as f:
         json.dump(questions, f, indent=2)
 
+
 def run_evaluation():
     db_file = "hillock_eval.db"
 
@@ -103,14 +104,26 @@ def run_evaluation():
             print("Error: Close active SQL tools before running evaluation.")
             return
 
-    print("========================================================")
+    print("=" * 60)
     print("        HILLOCK SCIENTIFIC BENCHMARKING PIPELINE        ")
-    print("========================================================")
+    print("=" * 60)
 
+    # Initialize Engine
     hillock = IntegratedHillock(db_file)
-    hillock.kg.clear_and_reinitialize()
 
-    print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt'...")
+    # Clear initial seeds to ensure 100% pure, unseeded benchmark evaluation
+    with sqlite3.connect(db_file) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM relations;")
+        cursor.execute("DELETE FROM hebbian_weights;")
+        cursor.execute("DELETE FROM entities;")
+        conn.commit()
+
+    hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
+    hillock.hdc.codebook.clear()
+    hillock.hdc.vocab_book.clear()
+
+    print("\n[Step 1/3]: Ingesting facts from 'eval_facts.txt' (Unseeded Pure Run)...")
 
     from ingestor import ingest_document_parallel
     res = ingest_document_parallel("eval_facts.txt", hillock)
@@ -179,7 +192,6 @@ def run_evaluation():
 
         active_ents = hillock.link_entities(q)
 
-        # Fast-Eval Direct Gating Retrieval (Bypasses Ollama HTTP rendering during benchmark)
         if active_ents:
             candidate_facts = hillock.kg.get_all_facts_for_entities(active_ents)
             matched_list = hillock.select_answering_facts(q, candidate_facts)
@@ -218,8 +230,12 @@ def run_evaluation():
 
     print("--------------------------------------------------------------------------------")
 
-    retrieval_acc = correct_answers / len([q for q in questions if q["answerable"]])
-    gate_acc = (correct_blocks + correct_answers) / len(questions)
+    total_answerable = len([q for q in questions if q["answerable"]])
+    total_unanswerable = len([q for q in questions if not q["answerable"]])
+
+    retrieval_acc = (correct_answers / total_answerable) if total_answerable > 0 else 0.0
+    hard_neg_block_rate = (correct_blocks / total_unanswerable) if total_unanswerable > 0 else 0.0
+    pooled_gate_acc = (correct_blocks + correct_answers) / len(questions)
 
     load_time = timing_stats.get("load_and_first_extraction_time", 0.0)
     pure_time = timing_stats.get("pure_extraction_time", 0.0)
@@ -227,14 +243,15 @@ def run_evaluation():
 
     print("\n[Step 3/3]: Generating Research Performance Metrics:")
     print("--------------------------------------------------")
-    print(f"  * Cold-Start -> 1st Extraction : {load_time:.2f} seconds (Model Load Overhead)")
+    print(f"  * Cold-Start -> 1st Extraction : {load_time:.2f} seconds")
     print(f"  * Pure Extraction Duration    : {pure_time:.2f} seconds")
     print(f"  * Pure Extraction Rate        : {pure_rate:.1f} sent/sec")
     print(f"  * 30-Query Retrieval Duration : {t_retrieval_duration:.3f} seconds (Fast-Eval)")
     print(f"  * Extraction Precision        : {precision*100:.1f}%")
     print(f"  * Extraction Recall           : {recall*100:.1f}%")
-    print(f"  * Retrieval Accuracy          : {retrieval_acc*100:.1f}%")
-    print(f"  * Gate Accuracy               : {gate_acc*100:.1f}%")
+    print(f"  * Answerable Retrieval Acc    : {retrieval_acc*100:.1f}% ({correct_answers}/{total_answerable})")
+    print(f"  * Hard-Negative Block Rate    : {hard_neg_block_rate*100:.1f}% ({correct_blocks}/{total_unanswerable})")
+    print(f"  * Pooled Gate Accuracy        : {pooled_gate_acc*100:.1f}%")
     print("--------------------------------------------------")
 
     if os.path.exists(db_file):
