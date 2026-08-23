@@ -1,4 +1,4 @@
-"""The main execution orchestrator for the conversational chat console (v0.5 - Rich Terminal Dashboard)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Token Streaming Output)."""
 
 import os
 import re
@@ -11,6 +11,7 @@ import platform
 import multiprocessing
 import subprocess
 import urllib.request
+import urllib.error
 from typing import List, Tuple, Set, Optional, Dict
 
 # Import modular components
@@ -149,13 +150,14 @@ class IntegratedHillock:
                     break
         return detected
 
-    def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
+    def query_ollama_stream(self, prompt: str, system_prompt: str) -> Optional[str]:
+        """Token-streaming Ollama generator for real-time console rendering."""
         url = OLLAMA_URL
         payload = {
             "model": self.ollama_model,
             "prompt": prompt,
             "system": system_prompt,
-            "stream": False,
+            "stream": True,
             "options": {"temperature": 0.0}
         }
         try:
@@ -165,11 +167,24 @@ class IntegratedHillock:
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
+            full_response = []
+            sys.stdout.write("Hillock (Ollama-Renderer) > ")
+            sys.stdout.flush()
+
             with urllib.request.urlopen(req, timeout=180) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                return res_data.get("response", "").strip()
+                for line in response:
+                    if line:
+                        chunk = json.loads(line.decode("utf-8"))
+                        token = chunk.get("response", "")
+                        sys.stdout.write(token)
+                        sys.stdout.flush()
+                        full_response.append(token)
+                        if chunk.get("done", False):
+                            break
+            print()  # Newline after stream finishes
+            return "".join(full_response).strip()
         except Exception as e:
-            logger.error(f"Ollama query error: {e}")
+            logger.error(f"Ollama streaming error: {e}")
             return None
 
     def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
@@ -221,7 +236,7 @@ class IntegratedHillock:
         return scored_facts
 
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
-        """Gating routing controller with pronoun coreference resolution."""
+        """Gating routing controller with pronoun coreference resolution and streaming response."""
         is_query = self.is_question(query)
 
         greetings = {"hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye"}
@@ -231,11 +246,13 @@ class IntegratedHillock:
             dummy_primed = []
             dummy_fingerprint = []
             if self.verbosity_mode == "CONVERSATIONAL":
-                return "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
+                msg = "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge."
             elif self.verbosity_mode == "BALANCED":
-                return "Hillock > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
+                msg = "Hillock > Hello. Ready for factual questions."
             else:
-                return "Hillock > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+                msg = "Hillock > I do not have verified information about that."
+            print(msg)
+            return msg, dummy_primed, dummy_fingerprint, "GREETING"
 
         active_entities = self.link_entities(query)
 
@@ -284,15 +301,21 @@ class IntegratedHillock:
                     primed_info = self.plasticity.get_associated_priming_context(source_id)
                     system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info, hdc_fingerprint)
 
-                    llm_response = self.query_ollama(render_prompt, system_prompt)
+                    llm_response = self.query_ollama_stream(render_prompt, system_prompt)
                     if llm_response:
                         return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
                     else:
-                        return f"Hillock (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
+                        fallback_msg = f"Hillock (Simulated) > Handshake resolved: {facts_str}."
+                        print(fallback_msg)
+                        return fallback_msg, primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
-            return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+            refusal_msg = "Hillock > I do not have verified information about that."
+            print(refusal_msg)
+            return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
-        return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+        refusal_msg = "Hillock > I do not have verified information about that."
+        print(refusal_msg)
+        return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
     def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[str, str]:
         priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
@@ -385,8 +408,6 @@ if __name__ == "__main__":
                 continue
 
             reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
-            print(reply)
-
             if primed:
                 print("  [Memory Priming Node Activations]:")
                 for node, weight in primed[:3]:
