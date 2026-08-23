@@ -1,17 +1,20 @@
-"""The main execution orchestrator for the conversational chat console (v0.3 - SimHash VSA)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Rich Terminal Dashboard)."""
 
 import os
 import re
+import sys
 import json
+import time
 import numpy as np
 import logging
 import platform
 import multiprocessing
 import subprocess
+import urllib.request
 from typing import List, Tuple, Set, Optional, Dict
 
 # Import modular components
-from config import DB_FILE, OLLAMA_MODEL, HDC_THRESHOLD, MAX_WORKERS
+from config import DB_FILE, OLLAMA_MODEL, OLLAMA_URL, HDC_THRESHOLD, MAX_WORKERS
 from database import SQLiteKnowledgeGraph
 from plasticity import HebbianPlasticityEngine
 from reservoir import HyperdimensionalReservoir, load_lightweight_glove
@@ -19,15 +22,10 @@ from ingestor import ingest_document_parallel
 
 logger = logging.getLogger("Hillock.Main")
 
-
 try:
-    import spacy
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except Exception:
-        nlp = None
-except Exception:
-    nlp = None
+    import psutil
+except ImportError:
+    psutil = None
 
 
 def get_gpu_name() -> str:
@@ -39,11 +37,11 @@ def get_gpu_name() -> str:
         )
         return out.strip()
     except Exception:
-        return "Non-NVIDIA GPU or nvidia-smi unavailable"
+        return "Non-NVIDIA GPU / CPU Execution Mode"
 
 
 def print_system_dashboard(hillock: "IntegratedHillock") -> None:
-    """Displays system specifications and database persistence status."""
+    """Displays system specifications and live hardware tracking dashboard."""
     gpu = get_gpu_name()
     cores = multiprocessing.cpu_count()
     os_name = f"{platform.system()} {platform.release()}"
@@ -53,28 +51,35 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     relations = hillock.kg.get_relations_count()
     synapses = hillock.kg.get_synapse_count()
 
-    print("\n" + "="*60)
+    ram_str = "Active"
+    if psutil:
+        ram = psutil.virtual_memory()
+        ram_str = f"{ram.used / (1024**3):.1f} GB / {ram.total / (1024**3):.1f} GB ({ram.percent}% Used)"
+
+    print("\n" + "="*65)
     print("               HILLOCK SYSTEM SPECIFICATIONS              ")
-    print("="*60)
+    print("="*65)
     print(" [HARDWARE PROFILE]")
-    print(f"  * OS Environment : {os_name}")
-    print(f"  * CPU Cores      : {cores} Logical Threads")
-    print(f"  * GPU Unit       : {gpu}")
-    print(f"  * Parallel Workers: {MAX_WORKERS} Threads (GTX 1070 Optimized)")
-    print(f"  * Python Host    : {python_ver}")
-    print("-"*60)
+    print(f"  * OS Environment  : {os_name}")
+    print(f"  * CPU Threads     : {cores} Logical Cores")
+    print(f"  * GPU / Execution : {gpu}")
+    print(f"  * System Memory   : {ram_str}")
+    print(f"  * Python Host     : {python_ver}")
+    print("-"*65)
     print(" [PERSISTENT MEMORY GRAPH STATUS]")
-    print(f"  * Database File  : {DB_FILE} ({'Active' if os.path.exists(DB_FILE) else 'Initializing'})")
-    print(f"  * Unique Entities: {entities} registered nodes")
-    print(f"  * Fact Triples   : {relations} stored relations")
-    print(f"  * Synapses       : {synapses} active Hebbian connections")
-    print("-"*60)
-    print(" [BUILT-IN COMMAND REFERENCE] (Pillar 1)")
+    print(f"  * Database File   : {DB_FILE} ({'Active' if os.path.exists(DB_FILE) else 'Initializing'})")
+    print(f"  * Unique Entities : {entities} registered nodes")
+    print(f"  * Fact Triples    : {relations} stored relations")
+    print(f"  * Synapses        : {synapses} active Hebbian connections")
+    print(f"  * Active LLM      : {hillock.ollama_model}")
+    print(f"  * Personality Mode: {hillock.verbosity_mode}")
+    print("-"*65)
+    print(" [BUILT-IN COMMAND REFERENCE]")
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
-    print("  * /mode [strict/balanced/convers] : Switch active AI personalities")
+    print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
     print("  * /reset                         : Clear and re-seed database & HDC space")
     print("  * exit / quit                    : Safely terminate session")
-    print("="*60 + "\n")
+    print("="*65 + "\n")
 
 
 class IntegratedHillock:
@@ -83,7 +88,7 @@ class IntegratedHillock:
         self.kg.seed_initial_knowledge()
         self.plasticity = HebbianPlasticityEngine(db_path)
 
-        # Load lightweight 10MB GloVe dictionary for continuous SimHash VSA (v0.3)
+        # Load lightweight 10MB GloVe dictionary for continuous SimHash VSA
         self.glove_dict = load_lightweight_glove()
         self.hdc = HyperdimensionalReservoir(glove_dict=self.glove_dict)
 
@@ -145,7 +150,7 @@ class IntegratedHillock:
         return detected
 
     def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
-        url = "http://localhost:11434/api/generate"
+        url = OLLAMA_URL
         payload = {
             "model": self.ollama_model,
             "prompt": prompt,
@@ -154,7 +159,6 @@ class IntegratedHillock:
             "options": {"temperature": 0.0}
         }
         try:
-            import urllib.request
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
@@ -164,7 +168,8 @@ class IntegratedHillock:
             with urllib.request.urlopen(req, timeout=180) as response:
                 res_data = json.loads(response.read().decode("utf-8"))
                 return res_data.get("response", "").strip()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Ollama query error: {e}")
             return None
 
     def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
@@ -191,7 +196,6 @@ class IntegratedHillock:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            # Resolve predicate hypervector using SimHash continuous mapping
             p_hv = self.hdc.resolve_predicate_hypervector(p)
 
             components = [s_resolved, o_resolved]
@@ -209,6 +213,7 @@ class IntegratedHillock:
             similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
 
             logger.info(f"HDC SimHash Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+
             if similarity >= threshold:
                 scored_facts.append((s, p, o, similarity))
 
@@ -345,28 +350,28 @@ if __name__ == "__main__":
                 break
 
             if user_input.startswith("/mode"):
-                 parts = user_input.split()
-                 if len(parts) == 2:
-                      mode_name = parts[1].strip().upper()
-                      if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
-                           hillock.verbosity_mode = mode_name
-                           print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
-                      else:
-                           print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
-                 else:
-                      print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
-                 continue
+                parts = user_input.split()
+                if len(parts) == 2:
+                    mode_name = parts[1].strip().upper()
+                    if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
+                        hillock.verbosity_mode = mode_name
+                        print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
+                    else:
+                        print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
+                else:
+                    print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
+                continue
 
             if user_input.strip() == "/reset":
-                 print("Hillock [SYSTEM]: Initiating deliberate database reset...")
-                 hillock.kg.clear_and_reinitialize()
-                 hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
-                 hillock.hdc.codebook.clear()
-                 hillock.hdc.vocab_book.clear()
-                 for ent_id in hillock.kg.get_all_entity_ids():
-                     hillock.hdc.get_or_allocate_hypervector(ent_id)
-                 print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
-                 continue
+                print("Hillock [SYSTEM]: Initiating deliberate database reset...")
+                hillock.kg.clear_and_reinitialize()
+                hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
+                hillock.hdc.codebook.clear()
+                hillock.hdc.vocab_book.clear()
+                for ent_id in hillock.kg.get_all_entity_ids():
+                    hillock.hdc.get_or_allocate_hypervector(ent_id)
+                print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
+                continue
 
             if user_input.startswith("/ingest"):
                 parts = user_input.split()
