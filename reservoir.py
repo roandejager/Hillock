@@ -22,30 +22,42 @@ def load_lightweight_glove(
     Downloads (if necessary) and loads a trimmed GloVe dictionary into memory.
     Memory footprint for 50,000 words at 50 dimensions is ~10MB RAM.
     """
-    if not os.path.exists(glove_path):
-        zip_path = "glove.6B.zip"
-        if not os.path.exists(zip_path):
-            print("[v0.3 HDC] Downloading lightweight Stanford GloVe embeddings (50d)...")
-            url = "https://nlp.stanford.edu/data/glove.6B.zip"
-            urllib.request.urlretrieve(url, zip_path)
-        print("[v0.3 HDC] Extracting glove.6B.50d.txt...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extract("glove.6B.50d.txt")
+    zip_path = "glove.6B.zip"
+
+    # Check if extracted file exists and is valid
+    if not os.path.exists(glove_path) or os.path.getsize(glove_path) == 0:
+        # Check zip file validity
+        if os.path.exists(zip_path):
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extract("glove.6B.50d.txt")
+            except zipfile.BadZipFile:
+                print("[v0.3 HDC] Corrupted glove.6B.zip detected. Removing bad file...")
+                os.remove(zip_path)
+
+        if not os.path.exists(glove_path):
+            if not os.path.exists(zip_path):
+                print("[v0.3 HDC] Downloading lightweight Stanford GloVe embeddings (50d)...")
+                url = "https://nlp.stanford.edu/data/glove.6B.zip"
+                urllib.request.urlretrieve(url, zip_path)
+            print("[v0.3 HDC] Extracting glove.6B.50d.txt...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extract("glove.6B.50d.txt")
 
     glove_dict = {}
-    print(f"[v0.3 HDC] Loading top {max_vocab} words from {glove_path}...")
-    with open(glove_path, 'r', encoding='utf-8') as f:
-        for idx, line in enumerate(f):
-            if idx >= max_vocab:
-                break
-            parts = line.strip().split(' ')
-            word = parts[0]
-            vector = np.array(parts[1:], dtype=np.float32)
-            if len(vector) == embedding_dim:
-                glove_dict[word] = vector
-    print(f"[v0.3 HDC] Loaded {len(glove_dict)} word vectors into memory (~10MB RAM).")
+    if os.path.exists(glove_path) and os.path.getsize(glove_path) > 0:
+        print(f"[v0.3 HDC] Loading top {max_vocab} words from {glove_path}...")
+        with open(glove_path, 'r', encoding='utf-8') as f:
+            for idx, line in enumerate(f):
+                if idx >= max_vocab:
+                    break
+                parts = line.strip().split(' ')
+                word = parts[0]
+                vector = np.array(parts[1:], dtype=np.float32)
+                if len(vector) == embedding_dim:
+                    glove_dict[word] = vector
+        print(f"[v0.3 HDC] Loaded {len(glove_dict)} word vectors into memory (~10MB RAM).")
     return glove_dict
-
 
 class SubwordHDCEncoder:
     """Extracts subword character n-grams and superposes them into HDC space."""

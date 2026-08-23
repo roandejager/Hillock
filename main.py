@@ -1,17 +1,21 @@
-"""The main execution orchestrator for the conversational chat console (v0.3 - SimHash VSA)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Interactive CLI Diagnostics)."""
 
 import os
 import re
+import sys
 import json
+import time
 import numpy as np
 import logging
 import platform
 import multiprocessing
 import subprocess
+import urllib.request
+import urllib.error
 from typing import List, Tuple, Set, Optional, Dict
 
 # Import modular components
-from config import DB_FILE, OLLAMA_MODEL, HDC_THRESHOLD, MAX_WORKERS
+from config import DB_FILE, OLLAMA_MODEL, OLLAMA_URL, HDC_THRESHOLD, MAX_WORKERS
 from database import SQLiteKnowledgeGraph
 from plasticity import HebbianPlasticityEngine
 from reservoir import HyperdimensionalReservoir, load_lightweight_glove
@@ -19,15 +23,10 @@ from ingestor import ingest_document_parallel
 
 logger = logging.getLogger("Hillock.Main")
 
-
 try:
-    import spacy
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except Exception:
-        nlp = None
-except Exception:
-    nlp = None
+    import psutil
+except ImportError:
+    psutil = None
 
 
 def get_gpu_name() -> str:
@@ -39,11 +38,11 @@ def get_gpu_name() -> str:
         )
         return out.strip()
     except Exception:
-        return "Non-NVIDIA GPU or nvidia-smi unavailable"
+        return "Non-NVIDIA GPU / CPU Execution Mode"
 
 
 def print_system_dashboard(hillock: "IntegratedHillock") -> None:
-    """Displays system specifications and database persistence status."""
+    """Displays system specifications and live hardware tracking dashboard."""
     gpu = get_gpu_name()
     cores = multiprocessing.cpu_count()
     os_name = f"{platform.system()} {platform.release()}"
@@ -53,28 +52,41 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     relations = hillock.kg.get_relations_count()
     synapses = hillock.kg.get_synapse_count()
 
-    print("\n" + "="*60)
+    ram_str = "Active"
+    if psutil:
+        ram = psutil.virtual_memory()
+        ram_str = f"{ram.used / (1024**3):.1f} GB / {ram.total / (1024**3):.1f} GB ({ram.percent}% Used)"
+
+    print("\n" + "="*65)
     print("               HILLOCK SYSTEM SPECIFICATIONS              ")
-    print("="*60)
+    print("="*65)
     print(" [HARDWARE PROFILE]")
-    print(f"  * OS Environment : {os_name}")
-    print(f"  * CPU Cores      : {cores} Logical Threads")
-    print(f"  * GPU Unit       : {gpu}")
-    print(f"  * Parallel Workers: {MAX_WORKERS} Threads (GTX 1070 Optimized)")
-    print(f"  * Python Host    : {python_ver}")
-    print("-"*60)
+    print(f"  * OS Environment  : {os_name}")
+    print(f"  * CPU Threads     : {cores} Logical Cores")
+    print(f"  * GPU / Execution : {gpu}")
+    print(f"  * System Memory   : {ram_str}")
+    print(f"  * Python Host     : {python_ver}")
+    print("-"*65)
     print(" [PERSISTENT MEMORY GRAPH STATUS]")
-    print(f"  * Database File  : {DB_FILE} ({'Active' if os.path.exists(DB_FILE) else 'Initializing'})")
-    print(f"  * Unique Entities: {entities} registered nodes")
-    print(f"  * Fact Triples   : {relations} stored relations")
-    print(f"  * Synapses       : {synapses} active Hebbian connections")
-    print("-"*60)
-    print(" [BUILT-IN COMMAND REFERENCE] (Pillar 1)")
+    print(f"  * Database File   : {DB_FILE} ({'Active' if os.path.exists(DB_FILE) else 'Initializing'})")
+    print(f"  * Unique Entities : {entities} registered nodes")
+    print(f"  * Fact Triples    : {relations} stored relations")
+    print(f"  * Synapses        : {synapses} active Hebbian connections")
+    print(f"  * Active LLM      : {hillock.ollama_model}")
+    print(f"  * Personality Mode: [{hillock.verbosity_mode}]")
+    print(f"  * Debug Verbosity : [{hillock.debug_level}]")
+    print("-"*65)
+    print(" [BUILT-IN COMMAND REFERENCE]")
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
-    print("  * /mode [strict/balanced/convers] : Switch active AI personalities")
+    print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
+    print("  * /model [model_name]            : List local models or switch LLM on the fly")
+    print("  * /inspect [entity]              : View stored triples & Hebbian weights")
+    print("  * /status                        : Display live hardware & memory status")
+    print("  * /debug [off/low/full]          : Change background log verbosity")
     print("  * /reset                         : Clear and re-seed database & HDC space")
+    print("  * /help                          : Display this command reference")
     print("  * exit / quit                    : Safely terminate session")
-    print("="*60 + "\n")
+    print("="*65 + "\n")
 
 
 class IntegratedHillock:
@@ -83,12 +95,13 @@ class IntegratedHillock:
         self.kg.seed_initial_knowledge()
         self.plasticity = HebbianPlasticityEngine(db_path)
 
-        # Load lightweight 10MB GloVe dictionary for continuous SimHash VSA (v0.3)
+        # Load lightweight 10MB GloVe dictionary for continuous SimHash VSA
         self.glove_dict = load_lightweight_glove()
         self.hdc = HyperdimensionalReservoir(glove_dict=self.glove_dict)
 
         self.ollama_model = ollama_model
         self.verbosity_mode = "BALANCED"  # Options: STRICT, BALANCED, CONVERSATIONAL
+        self.debug_level = "OFF"         # Options: OFF, LOW, FULL
 
         # Predicate Normalization Map
         self.predicate_map = {
@@ -144,27 +157,53 @@ class IntegratedHillock:
                     break
         return detected
 
-    def query_ollama(self, prompt: str, system_prompt: str) -> Optional[str]:
-        url = "http://localhost:11434/api/generate"
+    def list_local_ollama_models(self) -> List[str]:
+        """Queries local Ollama tags API to discover available models on user's PC."""
+        url = "http://localhost:11434/api/tags"
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                models = [m.get("name", "") for m in res_data.get("models", []) if m.get("name")]
+                return models
+        except Exception:
+            return []
+
+    def query_ollama_stream(self, prompt: str, system_prompt: str) -> Optional[str]:
+        """Token-streaming Ollama generator for real-time console rendering."""
+        url = OLLAMA_URL
         payload = {
             "model": self.ollama_model,
             "prompt": prompt,
             "system": system_prompt,
-            "stream": False,
+            "stream": True,
             "options": {"temperature": 0.0}
         }
         try:
-            import urllib.request
             req = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
+            full_response = []
+            sys.stdout.write("Hillock (Ollama-Renderer) > ")
+            sys.stdout.flush()
+
             with urllib.request.urlopen(req, timeout=180) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                return res_data.get("response", "").strip()
-        except Exception:
+                for line in response:
+                    if line:
+                        chunk = json.loads(line.decode("utf-8"))
+                        token = chunk.get("response", "")
+                        sys.stdout.write(token)
+                        sys.stdout.flush()
+                        full_response.append(token)
+                        if chunk.get("done", False):
+                            break
+            print()  # Newline after stream finishes
+            return "".join(full_response).strip()
+        except Exception as e:
+            logger.error(f"Ollama streaming error: {e}")
             return None
 
     def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
@@ -191,7 +230,6 @@ class IntegratedHillock:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            # Resolve predicate hypervector using SimHash continuous mapping
             p_hv = self.hdc.resolve_predicate_hypervector(p)
 
             components = [s_resolved, o_resolved]
@@ -208,7 +246,9 @@ class IntegratedHillock:
             f_norm = np.linalg.norm(fact_hv)
             similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
 
-            logger.info(f"HDC SimHash Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+            if self.debug_level in ["LOW", "FULL"]:
+                print(f"  [DEBUG HDC SimHash]: Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+
             if similarity >= threshold:
                 scored_facts.append((s, p, o, similarity))
 
@@ -216,7 +256,7 @@ class IntegratedHillock:
         return scored_facts
 
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
-        """Gating routing controller with pronoun coreference resolution."""
+        """Gating routing controller with pronoun coreference resolution and streaming response."""
         is_query = self.is_question(query)
 
         greetings = {"hello", "hi", "hey", "greetings", "thanks", "thank you", "bye", "goodbye"}
@@ -226,11 +266,13 @@ class IntegratedHillock:
             dummy_primed = []
             dummy_fingerprint = []
             if self.verbosity_mode == "CONVERSATIONAL":
-                return "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge.", dummy_primed, dummy_fingerprint, "GREETING"
+                msg = "Hillock > Hello! I am your conversational hillock. Ask me any factual questions about my indexed knowledge."
             elif self.verbosity_mode == "BALANCED":
-                return "Hillock > Hello. Ready for factual questions.", dummy_primed, dummy_fingerprint, "GREETING"
+                msg = "Hillock > Hello. Ready for factual questions."
             else:
-                return "Hillock > I do not have verified information about that.", dummy_primed, dummy_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+                msg = "Hillock > I do not have verified information about that."
+            print(msg)
+            return msg, dummy_primed, dummy_fingerprint, "GREETING"
 
         active_entities = self.link_entities(query)
 
@@ -242,7 +284,8 @@ class IntegratedHillock:
                 fingerprint = self.hdc.get_context_fingerprint(top_k=1)
                 if fingerprint:
                     closest_entity, similarity = fingerprint[0]
-                    logger.info(f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
+                    if self.debug_level in ["LOW", "FULL"]:
+                        print(f"  [DEBUG HDC Coref]: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
                     active_entities.add(closest_entity)
 
         # Update HDC context state sequentially
@@ -279,15 +322,21 @@ class IntegratedHillock:
                     primed_info = self.plasticity.get_associated_priming_context(source_id)
                     system_prompt, render_prompt = self._get_mode_prompts(query, facts_str, primed_info, hdc_fingerprint)
 
-                    llm_response = self.query_ollama(render_prompt, system_prompt)
+                    llm_response = self.query_ollama_stream(render_prompt, system_prompt)
                     if llm_response:
                         return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
                     else:
-                        return f"Hillock (Simulated) > Handshake resolved: {facts_str}.", primed_info, hdc_fingerprint, "RENDER_FALLBACK"
+                        fallback_msg = f"Hillock (Simulated) > Handshake resolved: {facts_str}."
+                        print(fallback_msg)
+                        return fallback_msg, primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
-            return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+            refusal_msg = "Hillock > I do not have verified information about that."
+            print(refusal_msg)
+            return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
-        return "Hillock > I do not have verified information about that.", [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
+        refusal_msg = "Hillock > I do not have verified information about that."
+        print(refusal_msg)
+        return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
     def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list) -> Tuple[str, str]:
         priming_str = ", ".join([f"{node} (strength {w:.2f})" for node, w in primed_info[:2]]) if primed_info else "None"
@@ -340,38 +389,106 @@ if __name__ == "__main__":
             user_input = input("User > ").strip()
             if not user_input:
                 continue
-            if user_input.lower() in ["exit", "quit", "/exit", "/quit"]:
+
+            cmd_parts = user_input.split()
+            cmd = cmd_parts[0].lower()
+
+            if cmd in ["exit", "quit", "/exit", "/quit"]:
                 print("Safely shutting down local hillock.")
                 break
 
-            if user_input.startswith("/mode"):
-                 parts = user_input.split()
-                 if len(parts) == 2:
-                      mode_name = parts[1].strip().upper()
-                      if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
-                           hillock.verbosity_mode = mode_name
-                           print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
-                      else:
-                           print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
-                 else:
-                      print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
-                 continue
+            if cmd == "/mode":
+                if len(cmd_parts) == 2:
+                    mode_name = cmd_parts[1].strip().upper()
+                    if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
+                        hillock.verbosity_mode = mode_name
+                        print(f"Hillock [SYSTEM]: Personality mode set to [{mode_name}] successfully.")
+                    else:
+                        print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
+                else:
+                    print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
+                continue
 
-            if user_input.strip() == "/reset":
-                 print("Hillock [SYSTEM]: Initiating deliberate database reset...")
-                 hillock.kg.clear_and_reinitialize()
-                 hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
-                 hillock.hdc.codebook.clear()
-                 hillock.hdc.vocab_book.clear()
-                 for ent_id in hillock.kg.get_all_entity_ids():
-                     hillock.hdc.get_or_allocate_hypervector(ent_id)
-                 print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
-                 continue
+            if cmd == "/model":
+                available_models = hillock.list_local_ollama_models()
+                if len(cmd_parts) >= 2:
+                    target_model = user_input.split(maxsplit=1)[1].strip()
+                    hillock.ollama_model = target_model
+                    print(f"Hillock [SYSTEM]: Active Ollama model switched to [{target_model}].")
+                else:
+                    print(f"\nHillock [SYSTEM]: Active Model: [{hillock.ollama_model}]")
+                    if available_models:
+                        print(" [Available Local Ollama Models on your PC]:")
+                        for m in available_models:
+                            star = " (Active)" if m == hillock.ollama_model else ""
+                            print(f"  * {m}{star}")
+                    else:
+                        print(" (Could not connect to Ollama API or no models pulled yet)")
+                    print(" Usage: /model [model_name] to switch models\n")
+                continue
 
-            if user_input.startswith("/ingest"):
-                parts = user_input.split()
-                if len(parts) >= 2:
-                    filename = parts[1].strip()
+            if cmd == "/debug":
+                if len(cmd_parts) == 2:
+                    target_lvl = cmd_parts[1].strip().upper()
+                    if target_lvl in ["OFF", "LOW", "FULL"]:
+                        hillock.debug_level = target_lvl
+                        print(f"Hillock [SYSTEM]: Debug logging verbosity set to [{target_lvl}].")
+                    else:
+                        print("Hillock [SYSTEM]: Error. Debug levels available: off, low, full.")
+                else:
+                    print(f"\nHillock [SYSTEM]: Current Debug Level: [{hillock.debug_level}]")
+                    print(" Options:")
+                    print("  * /debug off  : Clean chat output only")
+                    print("  * /debug low  : Show basic memory priming traces")
+                    print("  * /debug full : Show complete HDC cosine match scores and full diagnostics\n")
+                continue
+
+            if cmd == "/inspect":
+                if len(cmd_parts) >= 2:
+                    ent_query = user_input.split(maxsplit=1)[1].strip()
+                    resolved_id = hillock.resolve_entity_identity(ent_query)
+                    facts = hillock.kg.get_all_facts_for_entities({resolved_id})
+                    weights = hillock.plasticity.get_associated_priming_context(resolved_id)
+
+                    print(f"\n" + "="*65)
+                    print(f" [INSPECTING ENTITY]: {resolved_id}")
+                    print("="*65)
+                    print("  Stored SPO Facts in Knowledge Graph:")
+                    if facts:
+                        for s, p, o in facts:
+                            print(f"   * [{s}] -[{p}]-> [{o}]")
+                    else:
+                        print("   (No stored facts found)")
+
+                    print("\n  Hebbian Synaptic Associations:")
+                    if weights:
+                        for target, w in weights:
+                            print(f"   * Associated Concept: '{target:<15}' Strength: {w:.4f}")
+                    else:
+                        print("   (No active synaptic weights)")
+                    print("="*65 + "\n")
+                else:
+                    print("Hillock [SYSTEM]: Error. Format is: /inspect [entity_name]")
+                continue
+
+            if cmd in ["/status", "/help"]:
+                print_system_dashboard(hillock)
+                continue
+
+            if cmd == "/reset":
+                print("Hillock [SYSTEM]: Initiating deliberate database reset...")
+                hillock.kg.clear_and_reinitialize()
+                hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
+                hillock.hdc.codebook.clear()
+                hillock.hdc.vocab_book.clear()
+                for ent_id in hillock.kg.get_all_entity_ids():
+                    hillock.hdc.get_or_allocate_hypervector(ent_id)
+                print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
+                continue
+
+            if cmd == "/ingest":
+                if len(cmd_parts) >= 2:
+                    filename = cmd_parts[1].strip()
                     print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' via TALON Engine...")
                     result, _ = ingest_document_parallel(filename, hillock)
                     print(f"Hillock [SYSTEM]: {result}")
@@ -380,17 +497,17 @@ if __name__ == "__main__":
                 continue
 
             reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
-            print(reply)
 
-            if primed:
-                print("  [Memory Priming Node Activations]:")
-                for node, weight in primed[:3]:
-                    print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
+            if hillock.debug_level in ["LOW", "FULL"]:
+                if primed:
+                    print("  [Memory Priming Node Activations]:")
+                    for node, weight in primed[:3]:
+                        print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
 
-            if fingerprint and mode == "RENDER_SUCCESS":
-                print("  [HDC Conversational Fingerprint Traces]:")
-                for node, sim in fingerprint[:3]:
-                    print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
+                if fingerprint and mode == "RENDER_SUCCESS":
+                    print("  [HDC Conversational Fingerprint Traces]:")
+                    for node, sim in fingerprint[:3]:
+                        print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
             print()
 
         except KeyboardInterrupt:
