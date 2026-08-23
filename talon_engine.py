@@ -58,7 +58,10 @@ try:
     try:
         nlp = spacy.load("en_core_web_sm")
     except Exception:
-        nlp = None
+        logger.info("SpaCy model 'en_core_web_sm' missing. Downloading automatically...")
+        import spacy.cli
+        spacy.cli.download("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm")
 except ImportError:
     nlp = None
 
