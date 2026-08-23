@@ -1,4 +1,4 @@
-"""The main execution orchestrator for the conversational chat console (v0.5 - Token Streaming Output)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Interactive Model Switcher)."""
 
 import os
 import re
@@ -78,6 +78,7 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     print(" [BUILT-IN COMMAND REFERENCE]")
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
     print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
+    print("  * /model [model_name]            : List local models or switch LLM on the fly")
     print("  * /reset                         : Clear and re-seed database & HDC space")
     print("  * exit / quit                    : Safely terminate session")
     print("="*65 + "\n")
@@ -149,6 +150,18 @@ class IntegratedHillock:
                     detected.add(entity_id)
                     break
         return detected
+
+    def list_local_ollama_models(self) -> List[str]:
+        """Queries local Ollama tags API to discover available models on user's PC."""
+        url = "http://localhost:11434/api/tags"
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                models = [m.get("name", "") for m in res_data.get("models", []) if m.get("name")]
+                return models
+        except Exception:
+            return []
 
     def query_ollama_stream(self, prompt: str, system_prompt: str) -> Optional[str]:
         """Token-streaming Ollama generator for real-time console rendering."""
@@ -368,14 +381,17 @@ if __name__ == "__main__":
             user_input = input("User > ").strip()
             if not user_input:
                 continue
-            if user_input.lower() in ["exit", "quit", "/exit", "/quit"]:
+
+            cmd_parts = user_input.split()
+            cmd = cmd_parts[0].lower()
+
+            if cmd in ["exit", "quit", "/exit", "/quit"]:
                 print("Safely shutting down local hillock.")
                 break
 
-            if user_input.startswith("/mode"):
-                parts = user_input.split()
-                if len(parts) == 2:
-                    mode_name = parts[1].strip().upper()
+            if cmd == "/mode":
+                if len(cmd_parts) == 2:
+                    mode_name = cmd_parts[1].strip().upper()
                     if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
                         hillock.verbosity_mode = mode_name
                         print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
@@ -385,7 +401,25 @@ if __name__ == "__main__":
                     print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
                 continue
 
-            if user_input.strip() == "/reset":
+            if cmd == "/model":
+                available_models = hillock.list_local_ollama_models()
+                if len(cmd_parts) >= 2:
+                    target_model = user_input.split(maxsplit=1)[1].strip()
+                    hillock.ollama_model = target_model
+                    print(f"Hillock [SYSTEM]: Active Ollama model switched to [{target_model}].")
+                else:
+                    print(f"\nHillock [SYSTEM]: Active Model: [{hillock.ollama_model}]")
+                    if available_models:
+                        print(" [Available Local Ollama Models on your PC]:")
+                        for m in available_models:
+                            star = " (Active)" if m == hillock.ollama_model else ""
+                            print(f"  * {m}{star}")
+                    else:
+                        print(" (Could not connect to Ollama API or no models pulled yet)")
+                    print(" Usage: /model [model_name] to switch models\n")
+                continue
+
+            if cmd == "/reset":
                 print("Hillock [SYSTEM]: Initiating deliberate database reset...")
                 hillock.kg.clear_and_reinitialize()
                 hillock.hdc.state = np.zeros(hillock.hdc.D, dtype=np.float64)
@@ -396,10 +430,9 @@ if __name__ == "__main__":
                 print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
                 continue
 
-            if user_input.startswith("/ingest"):
-                parts = user_input.split()
-                if len(parts) >= 2:
-                    filename = parts[1].strip()
+            if cmd == "/ingest":
+                if len(cmd_parts) >= 2:
+                    filename = cmd_parts[1].strip()
                     print(f"Hillock [SYSTEM]: Initiating bulk ingestion for '{filename}' via TALON Engine...")
                     result, _ = ingest_document_parallel(filename, hillock)
                     print(f"Hillock [SYSTEM]: {result}")
