@@ -1,4 +1,4 @@
-"""The main execution orchestrator for the conversational chat console (v0.5 - Configurable Debug Levels)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Interactive CLI Diagnostics)."""
 
 import os
 import re
@@ -80,8 +80,11 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
     print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
     print("  * /model [model_name]            : List local models or switch LLM on the fly")
+    print("  * /inspect [entity]              : View stored triples & Hebbian weights")
+    print("  * /status                        : Display live hardware & memory status")
     print("  * /debug [off/low/full]          : Change background log verbosity")
     print("  * /reset                         : Clear and re-seed database & HDC space")
+    print("  * /help                          : Display this command reference")
     print("  * exit / quit                    : Safely terminate session")
     print("="*65 + "\n")
 
@@ -438,6 +441,38 @@ if __name__ == "__main__":
                     print("  * /debug off  : Clean chat output only")
                     print("  * /debug low  : Show basic memory priming traces")
                     print("  * /debug full : Show complete HDC cosine match scores and full diagnostics\n")
+                continue
+
+            if cmd == "/inspect":
+                if len(cmd_parts) >= 2:
+                    ent_query = user_input.split(maxsplit=1)[1].strip()
+                    resolved_id = hillock.resolve_entity_identity(ent_query)
+                    facts = hillock.kg.get_all_facts_for_entities({resolved_id})
+                    weights = hillock.plasticity.get_associated_priming_context(resolved_id)
+
+                    print(f"\n" + "="*65)
+                    print(f" [INSPECTING ENTITY]: {resolved_id}")
+                    print("="*65)
+                    print("  Stored SPO Facts in Knowledge Graph:")
+                    if facts:
+                        for s, p, o in facts:
+                            print(f"   * [{s}] -[{p}]-> [{o}]")
+                    else:
+                        print("   (No stored facts found)")
+
+                    print("\n  Hebbian Synaptic Associations:")
+                    if weights:
+                        for target, w in weights:
+                            print(f"   * Associated Concept: '{target:<15}' Strength: {w:.4f}")
+                    else:
+                        print("   (No active synaptic weights)")
+                    print("="*65 + "\n")
+                else:
+                    print("Hillock [SYSTEM]: Error. Format is: /inspect [entity_name]")
+                continue
+
+            if cmd in ["/status", "/help"]:
+                print_system_dashboard(hillock)
                 continue
 
             if cmd == "/reset":
