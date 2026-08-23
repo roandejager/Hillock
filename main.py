@@ -1,4 +1,4 @@
-"""The main execution orchestrator for the conversational chat console (v0.5 - Interactive Model Switcher)."""
+"""The main execution orchestrator for the conversational chat console (v0.5 - Configurable Debug Levels)."""
 
 import os
 import re
@@ -73,12 +73,14 @@ def print_system_dashboard(hillock: "IntegratedHillock") -> None:
     print(f"  * Fact Triples    : {relations} stored relations")
     print(f"  * Synapses        : {synapses} active Hebbian connections")
     print(f"  * Active LLM      : {hillock.ollama_model}")
-    print(f"  * Personality Mode: {hillock.verbosity_mode}")
+    print(f"  * Personality Mode: [{hillock.verbosity_mode}]")
+    print(f"  * Debug Verbosity : [{hillock.debug_level}]")
     print("-"*65)
     print(" [BUILT-IN COMMAND REFERENCE]")
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
     print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
     print("  * /model [model_name]            : List local models or switch LLM on the fly")
+    print("  * /debug [off/low/full]          : Change background log verbosity")
     print("  * /reset                         : Clear and re-seed database & HDC space")
     print("  * exit / quit                    : Safely terminate session")
     print("="*65 + "\n")
@@ -96,6 +98,7 @@ class IntegratedHillock:
 
         self.ollama_model = ollama_model
         self.verbosity_mode = "BALANCED"  # Options: STRICT, BALANCED, CONVERSATIONAL
+        self.debug_level = "OFF"         # Options: OFF, LOW, FULL
 
         # Predicate Normalization Map
         self.predicate_map = {
@@ -240,7 +243,8 @@ class IntegratedHillock:
             f_norm = np.linalg.norm(fact_hv)
             similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
 
-            logger.info(f"HDC SimHash Matcher: Candidate Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+            if self.debug_level in ["LOW", "FULL"]:
+                print(f"  [DEBUG HDC SimHash]: Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
 
             if similarity >= threshold:
                 scored_facts.append((s, p, o, similarity))
@@ -277,7 +281,8 @@ class IntegratedHillock:
                 fingerprint = self.hdc.get_context_fingerprint(top_k=1)
                 if fingerprint:
                     closest_entity, similarity = fingerprint[0]
-                    logger.info(f"HDC Coreference: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
+                    if self.debug_level in ["LOW", "FULL"]:
+                        print(f"  [DEBUG HDC Coref]: Resolved pronoun to context concept '{closest_entity}' (Similarity: {similarity:.4f})")
                     active_entities.add(closest_entity)
 
         # Update HDC context state sequentially
@@ -394,7 +399,7 @@ if __name__ == "__main__":
                     mode_name = cmd_parts[1].strip().upper()
                     if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
                         hillock.verbosity_mode = mode_name
-                        print(f"Hillock [SYSTEM]: Verbosity mode set to [{mode_name}] successfully.")
+                        print(f"Hillock [SYSTEM]: Personality mode set to [{mode_name}] successfully.")
                     else:
                         print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
                 else:
@@ -419,6 +424,22 @@ if __name__ == "__main__":
                     print(" Usage: /model [model_name] to switch models\n")
                 continue
 
+            if cmd == "/debug":
+                if len(cmd_parts) == 2:
+                    target_lvl = cmd_parts[1].strip().upper()
+                    if target_lvl in ["OFF", "LOW", "FULL"]:
+                        hillock.debug_level = target_lvl
+                        print(f"Hillock [SYSTEM]: Debug logging verbosity set to [{target_lvl}].")
+                    else:
+                        print("Hillock [SYSTEM]: Error. Debug levels available: off, low, full.")
+                else:
+                    print(f"\nHillock [SYSTEM]: Current Debug Level: [{hillock.debug_level}]")
+                    print(" Options:")
+                    print("  * /debug off  : Clean chat output only")
+                    print("  * /debug low  : Show basic memory priming traces")
+                    print("  * /debug full : Show complete HDC cosine match scores and full diagnostics\n")
+                continue
+
             if cmd == "/reset":
                 print("Hillock [SYSTEM]: Initiating deliberate database reset...")
                 hillock.kg.clear_and_reinitialize()
@@ -441,15 +462,17 @@ if __name__ == "__main__":
                 continue
 
             reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
-            if primed:
-                print("  [Memory Priming Node Activations]:")
-                for node, weight in primed[:3]:
-                    print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
 
-            if fingerprint and mode == "RENDER_SUCCESS":
-                print("  [HDC Conversational Fingerprint Traces]:")
-                for node, sim in fingerprint[:3]:
-                    print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
+            if hillock.debug_level in ["LOW", "FULL"]:
+                if primed:
+                    print("  [Memory Priming Node Activations]:")
+                    for node, weight in primed[:3]:
+                        print(f"    * Associated Concept: '{node:<13}'  Synaptic Connection Strength: {weight:.4f}")
+
+                if fingerprint and mode == "RENDER_SUCCESS":
+                    print("  [HDC Conversational Fingerprint Traces]:")
+                    for node, sim in fingerprint[:3]:
+                        print(f"    * Active Semantic Echo: '{node:<13}'  Vector Cosine Similarity: {sim:.4f}")
             print()
 
         except KeyboardInterrupt:
