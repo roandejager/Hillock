@@ -1,11 +1,13 @@
 # IDE settings
 .idea/
+.vscode/
 __pycache__/
 *.pyc
 
 # Local databases and runtime logs
 *.db
 *.log
+glove*
 
 # Keep prototypes, PDFs, and old files locally only (Do not upload to GitHub)
 *PROTO*
