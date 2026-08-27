@@ -2,6 +2,7 @@
 
 import sqlite3
 import re
+import numpy as np
 from typing import List, Tuple, Optional, Set
 from config import DB_FILE
 
@@ -16,10 +17,11 @@ class SQLiteKnowledgeGraph:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS entities (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    type TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS hdc_reservoirs (
+                    doc_id TEXT PRIMARY KEY,
+                    reservoir_vector BLOB NOT NULL,
+                    bound_path_count INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             cursor.execute("""
@@ -80,6 +82,7 @@ class SQLiteKnowledgeGraph:
             cursor.execute("DROP TABLE IF EXISTS hebbian_weights;")
             cursor.execute("DROP TABLE IF EXISTS relations;")
             cursor.execute("DROP TABLE IF EXISTS entities;")
+            cursor.execute("DROP TABLE IF EXISTS hdc_reservoirs;")
             conn.commit()
         self._initialize_db()
         self.seed_initial_knowledge()
@@ -169,3 +172,18 @@ class SQLiteKnowledgeGraph:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM entities")
             return [row[0] for row in cursor.fetchall()]
+
+    def save_document_reservoir(self, doc_id: str, vector: np.ndarray, path_count: int) -> None:
+        """Stores the binarized multi-hop document reservoir into SQLite as a compact BLOB."""
+        # Convert to bipolar int8 to save space, then to bytes for SQLite
+        bipolar_vector = np.sign(vector).astype(np.int8)
+        bipolar_vector[bipolar_vector == 0] = 1
+        vector_bytes = bipolar_vector.tobytes()
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO hdc_reservoirs (doc_id, reservoir_vector, bound_path_count) 
+                VALUES (?, ?, ?)
+            """, (doc_id, vector_bytes, path_count))
+            conn.commit()

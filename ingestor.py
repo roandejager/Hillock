@@ -127,6 +127,45 @@ def ingest_document_parallel(file_path: str, hillock) -> Tuple[str, Dict[str, fl
         hillock.kg.update_relations_batch(extracted_relations)
         hillock.plasticity.update_associations(active_entities_to_update)
 
+    # --- HYPERGRAPH-HDC Multi-Hop Path Generation & Pruning ---
+        # Build local adjacency list for traversal
+        adj = {}
+        for idx, (sub, pred, obj) in enumerate(extracted_relations):
+            if sub not in adj:
+                adj[sub] = []
+            adj[sub].append((pred, obj, idx))
+
+        multi_hop_paths = []
+        MAX_WINDOW = 6  # Rough approximation of a 2-sentence locality window (assuming ~3 triples per sentence)
+
+        for start_node in adj:
+            for p1, n1, idx1 in adj[start_node]:
+                if n1 in adj:
+                    # Explore 2-Hop Paths
+                    for p2, n2, idx2 in adj[n1]:
+                        if abs(idx2 - idx1) <= MAX_WINDOW and n2 != start_node:
+                            multi_hop_paths.append(([start_node, n1, n2], [p1, p2]))
+                            
+                            if n2 in adj:
+                                # Explore 3-Hop Paths
+                                for p3, n3, idx3 in adj[n2]:
+                                    if abs(idx3 - idx1) <= MAX_WINDOW and n3 not in (start_node, n1):
+                                        multi_hop_paths.append(([start_node, n1, n2, n3], [p1, p2, p3]))
+
+        print(f"  [HYPERGRAPH-HDC]: Pruned and generated {len(multi_hop_paths)} valid multi-hop relational paths.")
+
+        # Bind paths and superpose into the fading memory state
+        doc_accumulator = np.zeros(hillock.hdc.D, dtype=np.float64)
+        for ents, preds in multi_hop_paths:
+            path_hv = hillock.hdc.bind_sequential_path(ents, preds)
+            doc_accumulator += path_hv.astype(np.float64)
+
+        hillock.hdc.state += doc_accumulator
+        
+        # Persist the compact BLOB to SQLite
+        doc_id = os.path.basename(file_path)
+        hillock.kg.save_document_reservoir(doc_id, doc_accumulator, len(multi_hop_paths))
+
     t_end = time.perf_counter()
 
     t_first = getattr(talon, "t_first_triple", None) if talon else None
@@ -166,7 +205,8 @@ def ingest_document_parallel(file_path: str, hillock) -> Tuple[str, Dict[str, fl
         f"========================================================\n"
         f"  * File Processed             : {os.path.basename(file_path)}\n"
         f"  * Total Sentences            : {sentences_count}\n"
-        f"  * Extracted Triples          : {len(extracted_relations)}\n"
+        f"  * Extracted 1-Hop Triples    : {len(extracted_relations)}\n"
+        f"  * Multi-Hop Paths Bound      : {len(multi_hop_paths)}\n"
         f"  * Model Load & Cold-Start    : {cold_start_time:.2f} seconds\n"
         f"  * Pure Extraction Duration   : {pure_extraction_time:.2f} seconds\n"
         f"  * Pure Extraction Rate       : {pure_rate:.1f} sentences/sec{specs_str}\n"
