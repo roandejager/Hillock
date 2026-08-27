@@ -85,6 +85,18 @@ def main() -> None:
     cos_bind_A = float(np.dot(bind.astype(np.float32), hA.astype(np.float32)) / 10000.0)
     check("vsa-binding-orthogonal", abs(cos_bind_A) < 0.12, f"cos(bind,A)={cos_bind_A:.4f}")
 
+    # Test Permutation Orthogonality
+    h_orig = enc.encode("permutation_test")
+    h_perm = np.roll(h_orig, 1)
+    cos_perm = float(np.dot(h_orig.astype(np.float32), h_perm.astype(np.float32)) / 10000.0)
+    check("vsa-permutation-orthogonal", abs(cos_perm) < 0.12, f"cos(orig,perm)={cos_perm:.4f}")
+
+    # Test Sequential Path Binding doesn't collapse
+    from reservoir import HyperdimensionalReservoir
+    res_verify = HyperdimensionalReservoir()
+    path_hv = res_verify.bind_sequential_path(["NodeA", "NodeB", "NodeC"], ["Pred1", "Pred2"])
+    check("vsa-sequential-path-bipolar", set(np.unique(path_hv)) <= {-1, 1})
+
     # ------------------------------------------------------------ 4. v0.4 helpers
     from talon_engine import clean_entity_text, get_canonical_triple_key, is_inverted_asymmetric_pair
     check("clean-possessive", clean_entity_text("Marie Curie's") == "Marie Curie")
