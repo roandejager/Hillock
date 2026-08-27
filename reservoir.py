@@ -241,6 +241,45 @@ class HyperdimensionalReservoir:
 
         return float(max(0.0, min(1.0, score_full)))
 
+    def permute(self, hv: np.ndarray, shift: int = 1) -> np.ndarray:
+        """
+        Applies positional permutation (cyclic coordinate shift) to a hypervector.
+        This breaks commutativity so we can preserve sequential order in multi-hop paths.
+        """
+        return np.roll(hv, shift=shift)
+
+    def bind_sequential_path(self, entities: List[str], predicates: List[str]) -> np.ndarray:
+        """
+        HYPERGRAPH-HDC: Binds a multi-hop relational path into a single macro-vector.
+        Follows the mathematical formulation: E_0 * R_1 * Pi(E_1) * Pi^2(R_2) * Pi^3(E_2) ...
+        """
+        if not entities:
+            return np.ones(self.D, dtype=np.int8)
+
+        # Start with the anchor entity (E_0)
+        e0_hv = self.get_or_allocate_hypervector(entities[0], is_vocab_token=(entities[0] not in self.codebook))
+        path_hv = e0_hv.astype(np.int8).copy()
+        
+        for i in range(len(predicates)):
+            # 1. Bind the Predicate (R_{i+1})
+            r_hv = self.resolve_predicate_hypervector(predicates[i]).astype(np.int8)
+            p_shift = 2 * i
+            
+            if p_shift > 0:
+                r_hv = self.permute(r_hv, shift=p_shift)
+            path_hv = path_hv * r_hv
+            
+            # 2. Bind the next Entity (E_{i+1})
+            if i + 1 < len(entities):
+                e_next = entities[i + 1]
+                e_hv = self.get_or_allocate_hypervector(e_next, is_vocab_token=(e_next not in self.codebook)).astype(np.int8)
+                
+                e_shift = 2 * i + 1
+                e_hv = self.permute(e_hv, shift=e_shift)
+                path_hv = path_hv * e_hv
+                
+        return path_hv
+
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
         scores = []
         ctx_norm = np.linalg.norm(self.state)
