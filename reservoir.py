@@ -196,6 +196,51 @@ class HyperdimensionalReservoir:
         dot_prod = np.dot(current_bipolar_state.astype(np.float32), h_candidate.astype(np.float32))
         return float(dot_prod / self.D)
 
+    def hydra_late_interaction_maxsim(self, query_hvs: List[np.ndarray], fact_hvs: List[np.ndarray], tau_early: float = 0.60) -> float:
+        """
+        HYDRA: Bipolar Late-Interaction MaxSim scoring via Sub-Dimensional Projection Cascade.
+        Evaluates the maximum similarity of each query token against all fact tokens.
+        Uses a 2,000-D slice for early rejection before computing the full 10,000-D MaxSim.
+        """
+        if not query_hvs or not fact_hvs:
+            return 0.0
+
+        N_q = len(query_hvs)
+        N_d = len(fact_hvs)
+
+        # Cast to float32 for fast BLAS GEMM matrix multiplication
+        Q_full = np.array(query_hvs, dtype=np.float32)
+        F_full_T = np.array(fact_hvs, dtype=np.float32).T
+        
+        D_full = self.D
+        D_sub = 2000
+
+        # Stage 1: Fast evaluation on the first 2,000 dimensions
+        Q_sub = Q_full[:, :D_sub]
+        F_sub_T = F_full_T[:D_sub, :]
+
+        # Compute dot product (N_q x N_d)
+        dot_sub = np.dot(Q_sub, F_sub_T)
+        
+        # Max over document tokens, sum, and normalize to [0.0, 1.0]
+        score_sub = (np.sum(np.max(dot_sub, axis=1)) / (N_q * D_sub) + 1.0) * 0.5
+
+        # Early Rejection Gate
+        if score_sub < tau_early:
+            return float(score_sub)
+
+        # Stage 2: Full evaluation on 10,000 dimensions
+        dot_full = np.dot(Q_full, F_full_T)
+        score_full = (np.sum(np.max(dot_full, axis=1)) / (N_q * D_full) + 1.0) * 0.5
+
+        # Dynamic Length-Adjusted Normalization penalty for extreme values
+        if N_d > 1:
+            gamma = 0.5
+            noise_penalty = gamma * (np.sqrt(2 * np.log(N_d)) / np.sqrt(D_full))
+            score_full -= noise_penalty
+
+        return float(max(0.0, min(1.0, score_full)))
+
     def get_context_fingerprint(self, top_k: int = 3) -> List[Tuple[str, float]]:
         scores = []
         ctx_norm = np.linalg.norm(self.state)
