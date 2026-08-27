@@ -218,43 +218,46 @@ class IntegratedHillock:
             if len(token) > 2 or resolved in self.hdc.codebook:
                 query_components.add(resolved)
 
-        query_hv = np.zeros(self.hdc.D, dtype=np.int32)
+        # --- HYDRA LATE-INTERACTION: Collect individual token vectors instead of bundling ---
+        query_hvs = []
         for comp in query_components:
             if comp in self.hdc.codebook:
-                query_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=False)
+                query_hvs.append(self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=False))
             else:
-                query_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True)
+                query_hvs.append(self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True))
 
         scored_facts = []
         for s, p, o in facts:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            p_hv = self.hdc.resolve_predicate_hypervector(p)
+            # --- HYDRA LATE-INTERACTION: Collect individual fact token vectors ---
+            fact_hvs = []
+            
+            # Add predicate token
+            fact_hvs.append(self.hdc.resolve_predicate_hypervector(p))
 
+            # Add subject and object tokens
             components = [s_resolved, o_resolved]
-            fact_hv = p_hv.astype(np.int32).copy()
-
             for comp in set(components):
                 resolved_comp = self.resolve_entity_identity(comp)
                 if resolved_comp in self.hdc.codebook:
-                    fact_hv += self.hdc.get_or_allocate_hypervector(resolved_comp, is_vocab_token=False)
+                    fact_hvs.append(self.hdc.get_or_allocate_hypervector(resolved_comp, is_vocab_token=False))
                 else:
-                    fact_hv += self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True)
+                    fact_hvs.append(self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True))
 
-            q_norm = np.linalg.norm(query_hv)
-            f_norm = np.linalg.norm(fact_hv)
-            similarity = np.dot(query_hv, fact_hv) / (q_norm * f_norm) if (q_norm > 0 and f_norm > 0) else 0.0
+            # Compute MaxSim via the new Sub-Dimensional Cascade
+            similarity = self.hdc.hydra_late_interaction_maxsim(query_hvs, fact_hvs, tau_early=0.60)
 
             if self.debug_level in ["LOW", "FULL"]:
-                print(f"  [DEBUG HDC SimHash]: Fact [{s} {p} {o}] Cosine Similarity: {similarity:.4f}")
+                print(f"  [DEBUG HDC HYDRA]: Fact [{s} {p} {o}] MaxSim Score: {similarity:.4f}")
 
             if similarity >= threshold:
                 scored_facts.append((s, p, o, similarity))
 
         scored_facts.sort(key=lambda x: x[3], reverse=True)
         return scored_facts
-
+    
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
         """Gating routing controller with pronoun coreference resolution and streaming response."""
         is_query = self.is_question(query)
