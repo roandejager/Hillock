@@ -54,6 +54,8 @@ def generate_test_assets():
     )
 
     questions = [
+        {"question": "Where was the person who collaborated with Marie Curie born?", "expected_subject": "Albert_Einstein", "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
+        {"question": "Who did the person that cracked Enigma collaborate with?", "expected_subject": "Alan_Turing", "expected_predicate": "collaborated_with", "expected_object": "Albert_Einstein", "answerable": True},
         {"question": "Where was Marie Curie born?", "expected_subject": "Marie_Curie", "expected_predicate": "born_in", "expected_object": "Poland", "answerable": True},
         {"question": "Where was Alan Turing born?", "expected_subject": "Alan_Turing", "expected_predicate": "born_in", "expected_object": "London", "answerable": True},
         {"question": "Where was Albert Einstein born?", "expected_subject": "Albert_Einstein", "expected_predicate": "born_in", "expected_object": "Germany", "answerable": True},
