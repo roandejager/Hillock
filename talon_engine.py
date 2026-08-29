@@ -62,22 +62,23 @@ try:
         import spacy.cli
         spacy.cli.download("en_core_web_sm")
         nlp = spacy.load("en_core_web_sm")
-except ImportError:
+except Exception as e:
+    logger.debug(f"SpaCy/PyTorch import bypassed (OS block or missing): {e}")
     nlp = None
 
 try:
     from fastcoref import FCoref
-except ImportError:
+except Exception:
     FCoref = None
 
 try:
     from sentence_transformers import SentenceTransformer, util
-except ImportError:
+except Exception:
     SentenceTransformer = None
 
 try:
     from glirel import GLiREL
-except ImportError:
+except Exception:
     GLiREL = None
 
 

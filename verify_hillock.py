@@ -190,7 +190,7 @@ def main() -> None:
     from config import HDC_THRESHOLD
     passes = sum(1 for a, m, _ in rows if a and m is not None and m >= HDC_THRESHOLD)
     leaks = sum(1 for a, m, _ in rows if not a and m is not None and m >= HDC_THRESHOLD)
-    check("gate-distribution-ran", len(rows) == 30, f"verified gate distribution on {len(rows)} queries")
+    check("gate-distribution-ran", len(rows) == 32, f"verified gate distribution on {len(rows)} queries")
 
     # ------------------------------------------------------------ Summary
     print("\n" + "=" * 70)
