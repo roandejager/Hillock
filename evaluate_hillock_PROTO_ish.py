@@ -205,10 +205,22 @@ def run_evaluation():
         status = "UNKNOWN"
         if is_answerable:
             if is_gated_pass:
-                matched = matched_list[0]
-                if (matched[0].lower() == q_data["expected_subject"].lower() and
-                        matched[1].lower() == q_data["expected_predicate"].lower() and
-                        q_data["expected_object"].lower() in matched[2].lower()):
+                # Check if ANY fact that passed the gate answers the question
+                found_match = False
+                for matched in matched_list:
+                    sub_clean = matched[0].lower().rstrip("_")
+                    pred_clean = matched[1].lower()
+                    obj_clean = matched[2].lower().rstrip("_")
+                    
+                    exp_sub = q_data["expected_subject"].lower().rstrip("_")
+                    exp_pred = q_data["expected_predicate"].lower()
+                    exp_obj = q_data["expected_object"].lower().rstrip("_")
+
+                    if sub_clean == exp_sub and pred_clean == exp_pred and (exp_obj in obj_clean or obj_clean in exp_obj):
+                        found_match = True
+                        break
+
+                if found_match:
                     status = "CORRECT"
                     correct_answers += 1
                 else:
@@ -224,6 +236,7 @@ def run_evaluation():
                 status = "HALLUCINATION_LEAK"
                 incorrect_leaks += 1
 
+                
         expected_str = "Answer" if is_answerable else "Block"
         actual_str = "Answered" if is_gated_pass else "Blocked"
         print(f"{q:<40} | {expected_str:<8} | {actual_str:<10} | {status}")

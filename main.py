@@ -128,10 +128,12 @@ class IntegratedHillock:
         return False
 
     def resolve_entity_identity(self, name_str: str) -> str:
-        normalized_new = name_str.strip().replace(" ", "_").lower()
+        # Strip trailing possessive artifacts like _'s or _s
+        clean_name = re.sub(r"[_']s$", "", name_str.strip(), flags=re.IGNORECASE)
+        normalized_new = clean_name.replace(" ", "_").lower()
 
         if len(normalized_new) <= 2:
-            return name_str.strip().replace(" ", "_")
+            return clean_name.replace(" ", "_")
 
         all_ids = self.kg.get_all_entity_ids()
 
@@ -144,7 +146,7 @@ class IntegratedHillock:
             if normalized_new in lower_parts:
                 return ent_id
 
-        return name_str.strip().replace(" ", "_")
+        return clean_name.replace(" ", "_")
 
     def link_entities(self, query: str) -> Set[str]:
         detected = set()
@@ -214,11 +216,14 @@ class IntegratedHillock:
 
         query_components = set()
         for token in query_tokens:
-            resolved = self.resolve_entity_identity(token)
-            if len(token) > 2 or resolved in self.hdc.codebook:
+            # Normalize query verbs through predicate_map (e.g. crack -> cracked, work -> collaborated_with)
+            norm_token = self.predicate_map.get(token, token)
+            resolved = self.resolve_entity_identity(norm_token)
+            if len(token) > 2 or resolved in self.hdc.codebook or norm_token in self.predicate_map.values():
                 query_components.add(resolved)
+                if norm_token != token:
+                    query_components.add(norm_token)
 
-        # --- HYDRA LATE-INTERACTION: Collect individual token vectors instead of bundling ---
         query_hvs = []
         for comp in query_components:
             if comp in self.hdc.codebook:
@@ -226,18 +231,18 @@ class IntegratedHillock:
             else:
                 query_hvs.append(self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True))
 
+        if not query_hvs:
+            return []
+
         scored_facts = []
         for s, p, o in facts:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
-            # --- HYDRA LATE-INTERACTION: Collect individual fact token vectors ---
-            fact_hvs = []
-            
-            # Add predicate token
-            fact_hvs.append(self.hdc.resolve_predicate_hypervector(p))
+            # Fact tokens
+            p_hv = self.hdc.resolve_predicate_hypervector(p)
+            fact_hvs = [p_hv]
 
-            # Add subject and object tokens
             components = [s_resolved, o_resolved]
             for comp in set(components):
                 resolved_comp = self.resolve_entity_identity(comp)
@@ -246,18 +251,25 @@ class IntegratedHillock:
                 else:
                     fact_hvs.append(self.hdc.get_or_allocate_hypervector(comp, is_vocab_token=True))
 
-            # Compute MaxSim via the new Sub-Dimensional Cascade
-            similarity = self.hdc.hydra_late_interaction_maxsim(query_hvs, fact_hvs, tau_early=0.60)
+            # Compute raw MaxSim
+            similarity = self.hdc.hydra_late_interaction_maxsim(query_hvs, fact_hvs, tau_early=0.20)
+
+            # Predicate Intent Check: Fact predicate must align with at least one query token
+            pred_max_align = max(
+                (float(np.dot(q_hv.astype(np.float32), p_hv.astype(np.float32)) / self.hdc.D) for q_hv in query_hvs),
+                default=0.0
+            )
 
             if self.debug_level in ["LOW", "FULL"]:
-                print(f"  [DEBUG HDC HYDRA]: Fact [{s} {p} {o}] MaxSim Score: {similarity:.4f}")
+                print(f"  [DEBUG HDC HYDRA]: Fact [{s} {p} {o}] MaxSim: {similarity:.4f} | PredAlign: {pred_max_align:.4f}")
 
-            if similarity >= threshold:
+            # Pass only if overall MaxSim clears threshold AND predicate intent matches
+            if similarity >= threshold and pred_max_align >= 0.35:
                 scored_facts.append((s, p, o, similarity))
 
         scored_facts.sort(key=lambda x: x[3], reverse=True)
         return scored_facts
-    
+
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
         """Gating routing controller with pronoun coreference resolution and streaming response."""
         is_query = self.is_question(query)

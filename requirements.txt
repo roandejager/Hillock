@@ -10,3 +10,7 @@ fastcoref>=2.1.0
 glirel>=0.1.0
 sentence-transformers>=2.2.2
 spacy>=3.5.0
+loguru
+tiktoken
+sentencepiece
+protobuf

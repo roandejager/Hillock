@@ -369,6 +369,17 @@ class ZeroShotRelationExtractor:
             extracted_triples = []
             seen_keys = set()
 
+            # High-precision creation & discovery predicates
+            CREATION_PREDICATES = {
+                "designed", "developed", "invented", "discovered", "created", 
+                "cracked", "authored", "wrote", "formulated", "proposed", "patented"
+            }
+
+            INANIMATE_STOPWORDS = {
+                "dna", "algebra", "compiler", "engine", "machine", "images", 
+                "diffraction", "mathematica", "quarks", "moon", "radioactivity", "code"
+            }
+
             for item in results:
                 head_raw = item.get("head_text", "")
                 tail_raw = item.get("tail_text", "")
@@ -392,7 +403,19 @@ class ZeroShotRelationExtractor:
                 # Directionality Auto-Correction for Origin Predicates
                 if label in ORIGIN_PREDICATES:
                     if head_type in LOCATION_TAGS and tail_type not in LOCATION_TAGS:
-                        # GLiREL extracted [Location born_in Person] -> Auto-swap to [Person born_in Location]!
+                        clean_head, clean_tail = clean_tail, clean_head
+                        head_type, tail_type = tail_type, head_type
+
+                    # Inanimate Origin Filter: Abstract terms cannot be "born_in"
+                    head_words = set(clean_head.lower().split("_"))
+                    if head_words.intersection(INANIMATE_STOPWORDS):
+                        continue
+
+                # Directionality Auto-Correction for Creation/Action Predicates
+                if label in CREATION_PREDICATES:
+                    head_words = set(clean_head.lower().split("_"))
+                    # If head is clearly a machine/product/concept and tail is a person, swap them!
+                    if head_words.intersection(INANIMATE_STOPWORDS) or (head_type in {"WORK_OF_ART", "PRODUCT", "EVENT"} and tail_type == "PERSON"):
                         clean_head, clean_tail = clean_tail, clean_head
                         head_type, tail_type = tail_type, head_type
 

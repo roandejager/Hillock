@@ -8,6 +8,7 @@ import re
 import logging
 import time
 import datetime
+import numpy as np
 from typing import List, Dict, Tuple, Set, Optional
 
 try:
@@ -37,7 +38,11 @@ def get_talon_engine() -> Optional[TalonEngine]:
     if _talon_instance is None and TalonEngine is not None:
         try:
             logger.info("Initializing TALON Engine inside Ingestor...")
-            _talon_instance = TalonEngine(device="cuda:0")
+            import torch
+            # Dynamically detect if a GPU is available, otherwise default to CPU
+            target_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            logger.info(f"Routing TALON extractions to device: {target_device}")
+            _talon_instance = TalonEngine(device=target_device)
         except Exception as e:
             logger.error(f"Failed to initialize TALON Engine: {e}")
             _talon_instance = None

@@ -150,8 +150,9 @@ class SQLiteKnowledgeGraph:
                 cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
                 cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
 
-                if predicate in SINGLE_VALUED_PREDICATES:
-                    cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+# Keep all extracted candidates in DB rather than destructively deleting earlier valid facts
+                #if predicate in SINGLE_VALUED_PREDICATES:
+                #    cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
 
                 cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
             conn.commit()
