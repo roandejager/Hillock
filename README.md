@@ -28,6 +28,7 @@
 - [Interactive CLI Command Reference](#interactive-cli)
 - [Verification Suite](#verification-suite)
 - [Licensing & Contributions](#licensing)
+- [Contact & Collaboration](#contact)
 - [Codebase Overview](#codebase-overview)
 
 Traditional local RAG is surprisingly heavy. Running dense vector databases and using 8B+ generative LLMs just to parse documents and maintain long-term memory burns VRAM, chokes mid-range GPUs, and still hallucinates when asked about things it doesn't know.
@@ -295,6 +296,21 @@ The suite prints a `PASS`/`FAIL` line per check and exits non-zero if anything f
 Licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
 To keep the project open-source while preserving the option for future commercial dual-licensing, contributors must sign a standard **Contributor License Agreement (CLA)** via `cla-assistant.io` when opening a PR. See `CONTRIBUTING.md` and `CLA.md`.
+
+---
+
+<a id="contact"></a>
+## 📬 Contact & Collaboration
+
+Hillock is an active research project by **Roan de Jager**. 
+
+If you are interested in:
+* Custom neuro-symbolic memory integrations for local agents
+* Freelance consulting or paid contract work on edge-AI and memory systems
+* Research collaborations or exploring commercial licensing
+* General questions, feedback, or ideas
+
+Feel free to reach out directly via email at **[contact.roandejager@gmail.com](mailto:contact.roandejager@gmail.com)** or open a discussion on GitHub.
 
 ---
 
