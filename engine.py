@@ -149,7 +149,7 @@ class IntegratedHillock:
             logger.error(f"LLM streaming error: {e}")
             return None
 
-    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, float]]:
+    def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, str, float]]:
         if not facts:
             return []
 
@@ -175,7 +175,7 @@ class IntegratedHillock:
             return []
 
         scored_facts = []
-        for s, p, o in facts:
+        for s, p, o, doc in facts:
             s_resolved = self.resolve_entity_identity(s)
             o_resolved = self.resolve_entity_identity(o)
 
@@ -201,9 +201,9 @@ class IntegratedHillock:
                 print(f"  [DEBUG HDC HYDRA]: Fact [{s} {p} {o}] MaxSim: {similarity:.4f} | PredAlign: {pred_max_align:.4f}")
 
             if similarity >= threshold and pred_max_align >= 0.35:
-                scored_facts.append((s, p, o, similarity))
+                scored_facts.append((s, p, o, doc, similarity))
 
-        scored_facts.sort(key=lambda x: x[3], reverse=True)
+        scored_facts.sort(key=lambda x: x[4], reverse=True)
         return scored_facts
 
     def execute_chat_turn(self, query: str) -> Tuple[str, List[Tuple[str, float]], List[Tuple[str, float]], str]:
@@ -254,17 +254,17 @@ class IntegratedHillock:
                 matched_facts = self.select_answering_facts(query, candidate_facts)
                 if matched_facts:
                     active_update_set = active_entities.copy()
-                    for s, p, o, _ in matched_facts:
+                    for s, p, o, doc, _ in matched_facts:
                         active_update_set.add(s)
                         active_update_set.add(o)
                     self.plasticity.update_associations(active_update_set)
 
                     if len(matched_facts) == 1:
-                        s, p, o, _ = matched_facts[0]
-                        facts_str = f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]"
+                        s, p, o, doc, _ = matched_facts[0]
+                        facts_str = f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}] (Source: {doc})"
                         source_id = s
                     else:
-                        facts_str = " | ".join([f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}]" for s, p, o, _ in matched_facts])
+                        facts_str = " | ".join([f"[{s.replace('_', ' ')} {p} {o.replace('_', ' ')}] (Source: {doc})" for s, p, o, doc, _ in matched_facts])
                         source_id = matched_facts[0][0]
 
                     primed_info = self.plasticity.get_associated_priming_context(source_id)
@@ -272,7 +272,7 @@ class IntegratedHillock:
 
                     llm_response = self.query_ollama_stream(render_prompt, system_prompt)
                     if llm_response:
-                        return f"Hillock (Ollama-Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
+                        return f"Hillock (Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
                     else:
                         fallback_msg = f"Hillock (Simulated) > Handshake resolved: {facts_str}."
                         print(fallback_msg)

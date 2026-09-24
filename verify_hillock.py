@@ -184,7 +184,7 @@ def main() -> None:
         ents = hk3.link_entities(q["question"])
         facts = hk3.kg.get_all_facts_for_entities(ents) if ents else []
         scored = hk3.select_answering_facts(q["question"], facts, threshold=-1.0)
-        mx = max((s[3] for s in scored), default=None)
+        mx = max((s[4] for s in scored), default=None)
         rows.append((q["answerable"], mx, q["question"]))
 
     from config import HDC_THRESHOLD

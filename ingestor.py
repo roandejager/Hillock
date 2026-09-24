@@ -129,7 +129,8 @@ def ingest_document_parallel(file_path: str, hillock) -> Tuple[str, Dict[str, fl
         print(f"{t_stamp} [TALON EXTRACTED]: [{sub}] -[{norm_pred}]-> [{obj}]")
 
     if extracted_relations:
-        hillock.kg.update_relations_batch(extracted_relations)
+        doc_name = os.path.basename(file_path)
+        hillock.kg.update_relations_batch(extracted_relations, source_doc=doc_name)
         hillock.plasticity.update_associations(active_entities_to_update)
 
     # --- HYPERGRAPH-HDC Multi-Hop Path Generation & Pruning ---

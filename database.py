@@ -30,6 +30,9 @@ class SQLiteKnowledgeGraph:
                     source_id TEXT,
                     predicate TEXT,
                     target_id TEXT,
+                    source_doc TEXT DEFAULT 'manual_entry',
+                    confidence REAL DEFAULT 1.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (source_id, predicate, target_id),
                     FOREIGN KEY (source_id) REFERENCES entities(id) ON DELETE CASCADE,
                     FOREIGN KEY (target_id) REFERENCES entities(id) ON DELETE CASCADE
@@ -94,7 +97,7 @@ class SQLiteKnowledgeGraph:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.executemany("INSERT OR IGNORE INTO entities VALUES (?, ?, ?)", entities)
-            cursor.executemany("INSERT OR IGNORE INTO relations VALUES (?, ?, ?)", relations)
+            cursor.executemany("INSERT OR IGNORE INTO relations (source_id, predicate, target_id) VALUES (?, ?, ?)", relations)
             conn.commit()
 
     def clear_and_reinitialize(self) -> None:
@@ -134,12 +137,11 @@ class SQLiteKnowledgeGraph:
         self.update_relations_batch([(source_id, predicate, new_target_id)], source_type, target_type)
 
     def update_relations_batch(self, triples: List[Tuple[str, str, str]],
-                               source_type: str = "Generic", target_type: str = "Generic") -> None:
-        """Micro-batched relation insertion executing inside a single SQL transaction to eliminate disk locks."""
+                               source_type: str = "Generic", target_type: str = "Generic",
+                               source_doc: str = "manual_entry") -> None:
+        """Micro-batched relation insertion executing inside a single SQL transaction."""
         if not triples:
             return
-
-        SINGLE_VALUED_PREDICATES = {"born_in", "died_in", "capital_of", "place_of_birth", "place_of_death"}
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -152,11 +154,10 @@ class SQLiteKnowledgeGraph:
                 cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
                 cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
 
-# Keep all extracted candidates in DB rather than destructively deleting earlier valid facts
-                #if predicate in SINGLE_VALUED_PREDICATES:
-                #    cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
-
-                cursor.execute("INSERT OR REPLACE INTO relations VALUES (?, ?, ?)", (src_key, predicate, tgt_key))
+                cursor.execute("""
+                    INSERT OR REPLACE INTO relations (source_id, predicate, target_id, source_doc) 
+                    VALUES (?, ?, ?, ?)
+                """, (src_key, predicate, tgt_key, source_doc))
             conn.commit()
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
@@ -180,11 +181,11 @@ class SQLiteKnowledgeGraph:
                     return tgt_id
             return None
 
-    def get_all_facts_for_entities(self, active_entities: Set[str]) -> List[Tuple[str, str, str]]:
+    def get_all_facts_for_entities(self, active_entities: Set[str]) -> List[Tuple[str, str, str, str]]:
         if not active_entities:
             return []
         placeholders = ", ".join(["?"] * len(active_entities))
-        query = f"SELECT source_id, predicate, target_id FROM relations WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})"
+        query = f"SELECT source_id, predicate, target_id, source_doc FROM relations WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})"
         params = list(active_entities) + list(active_entities)
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
