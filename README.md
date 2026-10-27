@@ -113,6 +113,20 @@ Hillock has a quick CPU-only test suite that validates the database constraints,
 python verify_hillock.py
 ```
 
+## Running the Labyrinth Benchmark
+
+Run the reproducible v1.0.0 multi-hop baseline with an isolated temporary database:
+
+```bash
+python benchmark_labyrinth.py
+```
+
+The raw results are written to `benchmark_results/labyrinth_v1.0.0.json`. To plot comparisons from saved `labyrinth_v*.json` results (requires optional `matplotlib`):
+
+```bash
+python benchmark_labyrinth.py --plot
+```
+
 ---
 
 ## Roadmap: Moving Toward v2.0

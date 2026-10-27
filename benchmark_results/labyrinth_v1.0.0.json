@@ -1,0 +1,3168 @@
+{
+  "version": "1.0.0",
+  "timestamp_utc": "2026-10-27T21:04:47.892589+00:00",
+  "seed": 42,
+  "hardware": {
+    "cpu_model": "AMD Ryzen 3 PRO 5475U with Radeon Graphics",
+    "thread_count": 8,
+    "os": "Windows-11-10.0.26300-SP0"
+  },
+  "topology": {
+    "tiers": [
+      "Supplier",
+      "Warehouse",
+      "Distributor",
+      "RetailStore",
+      "Department",
+      "Shelf",
+      "Product",
+      "BatchCode"
+    ],
+    "relations": [
+      "supplies_to",
+      "ships_to",
+      "distributes_to",
+      "stocks_in",
+      "assigned_to",
+      "holds_item",
+      "has_batch"
+    ],
+    "branching_factor": [
+      2,
+      3
+    ],
+    "triples": 343,
+    "positive_chains": 10,
+    "distractor_edges": 198
+  },
+  "query_count": 105,
+  "suite_duration_seconds": 13.299854,
+  "total_queries_per_second": 7.894823507085116,
+  "metrics_by_hop": {
+    "1": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 10,
+        "FALSE_BLOCK": 0,
+        "CORRECT_REFUSAL": 5,
+        "HALLUCINATION_LEAK": 0
+      },
+      "accuracy_pct": 100.0,
+      "overall_accuracy_pct": 100.0,
+      "refusal_rate_pct": 100.0,
+      "hallucination_rate_pct": 0.0,
+      "latency_ms": {
+        "mean": 106.11157333333334,
+        "median": 99.718,
+        "p95": 176.86489,
+        "p99": 178.08081800000002
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 2.297166666666667,
+        "median": 2.2567,
+        "p95": 2.8661999999999996,
+        "p99": 3.1014
+      },
+      "gate_latency_ms": {
+        "mean": 98.74553999999999,
+        "median": 90.742,
+        "p95": 169.09618,
+        "p99": 169.501396
+      }
+    },
+    "2": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 10,
+        "FALSE_BLOCK": 0,
+        "CORRECT_REFUSAL": 0,
+        "HALLUCINATION_LEAK": 5
+      },
+      "accuracy_pct": 100.0,
+      "overall_accuracy_pct": 66.66666666666667,
+      "refusal_rate_pct": 0.0,
+      "hallucination_rate_pct": 100.0,
+      "latency_ms": {
+        "mean": 116.33024,
+        "median": 103.8502,
+        "p95": 154.12119999999993,
+        "p99": 186.94223999999997
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 4.129413333333334,
+        "median": 3.917,
+        "p95": 5.67085,
+        "p99": 5.84641
+      },
+      "gate_latency_ms": {
+        "mean": 107.49390666666666,
+        "median": 95.5278,
+        "p95": 145.45836999999995,
+        "p99": 178.35999399999997
+      }
+    },
+    "3": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 0,
+        "FALSE_BLOCK": 10,
+        "CORRECT_REFUSAL": 5,
+        "HALLUCINATION_LEAK": 0
+      },
+      "accuracy_pct": 0.0,
+      "overall_accuracy_pct": 33.333333333333336,
+      "refusal_rate_pct": 100.0,
+      "hallucination_rate_pct": 0.0,
+      "latency_ms": {
+        "mean": 120.94561333333334,
+        "median": 109.6396,
+        "p95": 157.78432999999998,
+        "p99": 165.331506
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 6.359579999999999,
+        "median": 6.3576,
+        "p95": 7.793529999999999,
+        "p99": 8.343506
+      },
+      "gate_latency_ms": {
+        "mean": 110.05201333333333,
+        "median": 98.2498,
+        "p95": 147.33320999999998,
+        "p99": 153.98976199999998
+      }
+    },
+    "4": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 10,
+        "FALSE_BLOCK": 0,
+        "CORRECT_REFUSAL": 0,
+        "HALLUCINATION_LEAK": 5
+      },
+      "accuracy_pct": 100.0,
+      "overall_accuracy_pct": 66.66666666666667,
+      "refusal_rate_pct": 0.0,
+      "hallucination_rate_pct": 100.0,
+      "latency_ms": {
+        "mean": 127.70436666666666,
+        "median": 131.0218,
+        "p95": 149.81967999999998,
+        "p99": 159.76225599999998
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 7.6441333333333334,
+        "median": 7.5914,
+        "p95": 9.276219999999999,
+        "p99": 9.755244
+      },
+      "gate_latency_ms": {
+        "mean": 115.56136666666666,
+        "median": 118.8456,
+        "p95": 137.59528999999998,
+        "p99": 147.995218
+      }
+    },
+    "5": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 0,
+        "FALSE_BLOCK": 10,
+        "CORRECT_REFUSAL": 5,
+        "HALLUCINATION_LEAK": 0
+      },
+      "accuracy_pct": 0.0,
+      "overall_accuracy_pct": 33.333333333333336,
+      "refusal_rate_pct": 100.0,
+      "hallucination_rate_pct": 0.0,
+      "latency_ms": {
+        "mean": 132.07896666666667,
+        "median": 118.6299,
+        "p95": 159.16156999999998,
+        "p99": 172.31927399999998
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 10.927973333333334,
+        "median": 9.822,
+        "p95": 20.63921999999997,
+        "p99": 37.423763999999984
+      },
+      "gate_latency_ms": {
+        "mean": 116.65138,
+        "median": 104.6302,
+        "p95": 145.59853999999996,
+        "p99": 160.284988
+      }
+    },
+    "6": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 0,
+        "FALSE_BLOCK": 10,
+        "CORRECT_REFUSAL": 5,
+        "HALLUCINATION_LEAK": 0
+      },
+      "accuracy_pct": 0.0,
+      "overall_accuracy_pct": 33.333333333333336,
+      "refusal_rate_pct": 100.0,
+      "hallucination_rate_pct": 0.0,
+      "latency_ms": {
+        "mean": 139.8498866666667,
+        "median": 126.584,
+        "p95": 177.05353,
+        "p99": 181.094546
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 12.902406666666668,
+        "median": 11.5422,
+        "p95": 21.612309999999972,
+        "p99": 36.297581999999984
+      },
+      "gate_latency_ms": {
+        "mean": 122.46982666666666,
+        "median": 109.2744,
+        "p95": 164.308,
+        "p99": 165.33728000000002
+      }
+    },
+    "7": {
+      "answerable_queries": 10,
+      "unanswerable_queries": 5,
+      "classification_counts": {
+        "SUCCESS": 0,
+        "FALSE_BLOCK": 10,
+        "CORRECT_REFUSAL": 5,
+        "HALLUCINATION_LEAK": 0
+      },
+      "accuracy_pct": 0.0,
+      "overall_accuracy_pct": 33.333333333333336,
+      "refusal_rate_pct": 100.0,
+      "hallucination_rate_pct": 0.0,
+      "latency_ms": {
+        "mean": 143.53297333333333,
+        "median": 129.5639,
+        "p95": 175.63007999999996,
+        "p99": 196.54529599999998
+      },
+      "exact_retrieval_latency_ms": {
+        "mean": 12.428426666666667,
+        "median": 13.6027,
+        "p95": 15.15826,
+        "p99": 15.219412
+      },
+      "gate_latency_ms": {
+        "mean": 126.52687999999999,
+        "median": 115.2142,
+        "p95": 156.69810999999996,
+        "p99": 178.73058199999997
+      }
+    }
+  },
+  "query_results": [
+    {
+      "query_id": "hop_1_positive_01",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarWarehouse00",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to NorthstarSupplier00 through supplies_to?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorNorthstarWarehouse00H1B1",
+        "NorthstarWarehouse00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 140.6913,
+      "exact_retrieval_latency_ms": 1.9892,
+      "gate_latency_ms": 133.3385
+    },
+    {
+      "query_id": "hop_1_positive_02",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarWarehouse01",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to CedarSupplier01 through supplies_to?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CedarWarehouse01",
+        "DistractorCedarWarehouse01H1B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 90.8306,
+      "exact_retrieval_latency_ms": 2.7402,
+      "gate_latency_ms": 83.9742
+    },
+    {
+      "query_id": "hop_1_positive_03",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitWarehouse02",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to SummitSupplier02 through supplies_to?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorSummitWarehouse02H1B1",
+        "SummitWarehouse02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 111.6089,
+      "exact_retrieval_latency_ms": 1.8627,
+      "gate_latency_ms": 104.973
+    },
+    {
+      "query_id": "hop_1_positive_04",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleWarehouse03",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to MapleSupplier03 through supplies_to?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorMapleWarehouse03H1B1",
+        "MapleWarehouse03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 87.6413,
+      "exact_retrieval_latency_ms": 2.0821,
+      "gate_latency_ms": 81.2307
+    },
+    {
+      "query_id": "hop_1_positive_05",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborWarehouse04",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to HarborSupplier04 through supplies_to?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorHarborWarehouse04H1B1",
+        "HarborWarehouse04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 99.718,
+      "exact_retrieval_latency_ms": 2.2615,
+      "gate_latency_ms": 90.742
+    },
+    {
+      "query_id": "hop_1_positive_06",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerWarehouse05",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to PioneerSupplier05 through supplies_to?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorPioneerWarehouse05H1B1",
+        "PioneerWarehouse05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 176.2135,
+      "exact_retrieval_latency_ms": 2.4649,
+      "gate_latency_ms": 168.8791
+    },
+    {
+      "query_id": "hop_1_positive_07",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowWarehouse06",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to WillowSupplier06 through supplies_to?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorWillowWarehouse06H1B1",
+        "WillowWarehouse06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 102.4084,
+      "exact_retrieval_latency_ms": 2.5535,
+      "gate_latency_ms": 93.438
+    },
+    {
+      "query_id": "hop_1_positive_08",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonWarehouse07",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to CanyonSupplier07 through supplies_to?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CanyonWarehouse07",
+        "DistractorCanyonWarehouse07H1B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 129.1141,
+      "exact_retrieval_latency_ms": 3.1602,
+      "gate_latency_ms": 119.5927
+    },
+    {
+      "query_id": "hop_1_positive_09",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodWarehouse08",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to RedwoodSupplier08 through supplies_to?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "DistractorRedwoodWarehouse08H1B1",
+        "DistractorRedwoodWarehouse08H1B2",
+        "RedwoodWarehouse08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 178.3848,
+      "exact_retrieval_latency_ms": 2.7354,
+      "gate_latency_ms": 169.6027
+    },
+    {
+      "query_id": "hop_1_positive_10",
+      "hop_depth": 1,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdWarehouse09",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to BluebirdSupplier09 through supplies_to?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "BluebirdWarehouse09",
+        "DistractorBluebirdWarehouse09H1B1",
+        "DistractorBluebirdWarehouse09H1B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 135.4999,
+      "exact_retrieval_latency_ms": 2.2567,
+      "gate_latency_ms": 128.0239
+    },
+    {
+      "query_id": "hop_1_negative_01",
+      "hop_depth": 1,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH1N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarWarehouse00",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to UnlinkedSupplierH1N00 through supplies_to?",
+      "active_entities": [
+        "UnlinkedSupplierH1N00"
+      ],
+      "candidate_fact_count": 1,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 69.4364,
+      "exact_retrieval_latency_ms": 1.9139,
+      "gate_latency_ms": 62.9503
+    },
+    {
+      "query_id": "hop_1_negative_02",
+      "hop_depth": 1,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH1N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarWarehouse01",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to UnlinkedSupplierH1N01 through supplies_to?",
+      "active_entities": [
+        "UnlinkedSupplierH1N01"
+      ],
+      "candidate_fact_count": 1,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 69.5386,
+      "exact_retrieval_latency_ms": 1.7101,
+      "gate_latency_ms": 63.7164
+    },
+    {
+      "query_id": "hop_1_negative_03",
+      "hop_depth": 1,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH1N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitWarehouse02",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to UnlinkedSupplierH1N02 through supplies_to?",
+      "active_entities": [
+        "UnlinkedSupplierH1N02"
+      ],
+      "candidate_fact_count": 1,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 69.9712,
+      "exact_retrieval_latency_ms": 2.1447,
+      "gate_latency_ms": 63.2577
+    },
+    {
+      "query_id": "hop_1_negative_04",
+      "hop_depth": 1,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH1N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleWarehouse03",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to UnlinkedSupplierH1N03 through supplies_to?",
+      "active_entities": [
+        "UnlinkedSupplierH1N03"
+      ],
+      "candidate_fact_count": 1,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 65.0577,
+      "exact_retrieval_latency_ms": 2.0599,
+      "gate_latency_ms": 58.5787
+    },
+    {
+      "query_id": "hop_1_negative_05",
+      "hop_depth": 1,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH1N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborWarehouse04",
+      "predicates": [
+        "supplies_to"
+      ],
+      "query": "Which Warehouse is connected to UnlinkedSupplierH1N04 through supplies_to?",
+      "active_entities": [
+        "UnlinkedSupplierH1N04"
+      ],
+      "candidate_fact_count": 1,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 65.5589,
+      "exact_retrieval_latency_ms": 2.5225,
+      "gate_latency_ms": 58.8852
+    },
+    {
+      "query_id": "hop_2_positive_01",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarDistributor00",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to NorthstarSupplier00 through supplies_to, ships_to?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorNorthstarDistributor00H2B1",
+        "NorthstarDistributor00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 121.9663,
+      "exact_retrieval_latency_ms": 3.917,
+      "gate_latency_ms": 113.5002
+    },
+    {
+      "query_id": "hop_2_positive_02",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarDistributor01",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to CedarSupplier01 through supplies_to, ships_to?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CedarDistributor01",
+        "DistractorCedarDistributor01H2B1",
+        "DistractorCedarDistributor01H2B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 136.5385,
+      "exact_retrieval_latency_ms": 3.6547,
+      "gate_latency_ms": 127.8325
+    },
+    {
+      "query_id": "hop_2_positive_03",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitDistributor02",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to SummitSupplier02 through supplies_to, ships_to?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorSummitDistributor02H2B1",
+        "SummitDistributor02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 103.8236,
+      "exact_retrieval_latency_ms": 5.5768,
+      "gate_latency_ms": 91.7177
+    },
+    {
+      "query_id": "hop_2_positive_04",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleDistributor03",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to MapleSupplier03 through supplies_to, ships_to?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorMapleDistributor03H2B1",
+        "DistractorMapleDistributor03H2B2",
+        "MapleDistributor03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 96.5267,
+      "exact_retrieval_latency_ms": 3.4728,
+      "gate_latency_ms": 88.9048
+    },
+    {
+      "query_id": "hop_2_positive_05",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborDistributor04",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to HarborSupplier04 through supplies_to, ships_to?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorHarborDistributor04H2B1",
+        "HarborDistributor04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 91.6295,
+      "exact_retrieval_latency_ms": 3.3786,
+      "gate_latency_ms": 83.7864
+    },
+    {
+      "query_id": "hop_2_positive_06",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerDistributor05",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to PioneerSupplier05 through supplies_to, ships_to?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorPioneerDistributor05H2B1",
+        "DistractorPioneerDistributor05H2B2",
+        "PioneerDistributor05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 99.1544,
+      "exact_retrieval_latency_ms": 4.0994,
+      "gate_latency_ms": 90.2792
+    },
+    {
+      "query_id": "hop_2_positive_07",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowDistributor06",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to WillowSupplier06 through supplies_to, ships_to?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorWillowDistributor06H2B1",
+        "WillowDistributor06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 96.4049,
+      "exact_retrieval_latency_ms": 4.626,
+      "gate_latency_ms": 87.5944
+    },
+    {
+      "query_id": "hop_2_positive_08",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonDistributor07",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to CanyonSupplier07 through supplies_to, ships_to?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CanyonDistributor07",
+        "DistractorCanyonDistributor07H2B1",
+        "DistractorCanyonDistributor07H2B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 103.8502,
+      "exact_retrieval_latency_ms": 4.3167,
+      "gate_latency_ms": 95.5278
+    },
+    {
+      "query_id": "hop_2_positive_09",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodDistributor08",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to RedwoodSupplier08 through supplies_to, ships_to?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "DistractorRedwoodDistributor08H2B1",
+        "RedwoodDistributor08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 132.3571,
+      "exact_retrieval_latency_ms": 4.2278,
+      "gate_latency_ms": 122.7291
+    },
+    {
+      "query_id": "hop_2_positive_10",
+      "hop_depth": 2,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdDistributor09",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to BluebirdSupplier09 through supplies_to, ships_to?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "BluebirdDistributor09",
+        "DistractorBluebirdDistributor09H2B1",
+        "DistractorBluebirdDistributor09H2B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 129.7736,
+      "exact_retrieval_latency_ms": 5.8903,
+      "gate_latency_ms": 119.5793
+    },
+    {
+      "query_id": "hop_2_negative_01",
+      "hop_depth": 2,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH2N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarDistributor00",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to UnlinkedSupplierH2N00 through supplies_to, ships_to?",
+      "active_entities": [
+        "UnlinkedSupplierH2N00"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 129.5016,
+      "exact_retrieval_latency_ms": 3.7371,
+      "gate_latency_ms": 121.467
+    },
+    {
+      "query_id": "hop_2_negative_02",
+      "hop_depth": 2,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH2N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarDistributor01",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to UnlinkedSupplierH2N01 through supplies_to, ships_to?",
+      "active_entities": [
+        "UnlinkedSupplierH2N01"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 195.1475,
+      "exact_retrieval_latency_ms": 3.5725,
+      "gate_latency_ms": 186.5854
+    },
+    {
+      "query_id": "hop_2_negative_03",
+      "hop_depth": 2,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH2N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitDistributor02",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to UnlinkedSupplierH2N02 through supplies_to, ships_to?",
+      "active_entities": [
+        "UnlinkedSupplierH2N02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 91.9661,
+      "exact_retrieval_latency_ms": 3.7709,
+      "gate_latency_ms": 83.0159
+    },
+    {
+      "query_id": "hop_2_negative_04",
+      "hop_depth": 2,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH2N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleDistributor03",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to UnlinkedSupplierH2N03 through supplies_to, ships_to?",
+      "active_entities": [
+        "UnlinkedSupplierH2N03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 91.8209,
+      "exact_retrieval_latency_ms": 3.645,
+      "gate_latency_ms": 83.9239
+    },
+    {
+      "query_id": "hop_2_negative_05",
+      "hop_depth": 2,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH2N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborDistributor04",
+      "predicates": [
+        "supplies_to",
+        "ships_to"
+      ],
+      "query": "Which Distributor is connected to UnlinkedSupplierH2N04 through supplies_to, ships_to?",
+      "active_entities": [
+        "UnlinkedSupplierH2N04"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 124.4927,
+      "exact_retrieval_latency_ms": 4.0556,
+      "gate_latency_ms": 115.965
+    },
+    {
+      "query_id": "hop_3_positive_01",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarRetailStore00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to NorthstarSupplier00 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorNorthstarRetailStore00H3B1",
+        "DistractorNorthstarRetailStore00H3B2",
+        "NorthstarRetailStore00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 139.9801,
+      "exact_retrieval_latency_ms": 6.115,
+      "gate_latency_ms": 129.9115
+    },
+    {
+      "query_id": "hop_3_positive_02",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarRetailStore01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to CedarSupplier01 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CedarRetailStore01",
+        "DistractorCedarRetailStore01H3B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 111.9109,
+      "exact_retrieval_latency_ms": 8.481,
+      "gate_latency_ms": 98.4764
+    },
+    {
+      "query_id": "hop_3_positive_03",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitRetailStore02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to SummitSupplier02 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorSummitRetailStore02H3B1",
+        "DistractorSummitRetailStore02H3B2",
+        "SummitRetailStore02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 130.7392,
+      "exact_retrieval_latency_ms": 7.3996,
+      "gate_latency_ms": 119.4006
+    },
+    {
+      "query_id": "hop_3_positive_04",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleRetailStore03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to MapleSupplier03 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorMapleRetailStore03H3B1",
+        "DistractorMapleRetailStore03H3B2",
+        "MapleRetailStore03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 102.9436,
+      "exact_retrieval_latency_ms": 6.3576,
+      "gate_latency_ms": 92.6452
+    },
+    {
+      "query_id": "hop_3_positive_05",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborRetailStore04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to HarborSupplier04 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorHarborRetailStore04H3B1",
+        "DistractorHarborRetailStore04H3B2",
+        "HarborRetailStore04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 105.3685,
+      "exact_retrieval_latency_ms": 7.2579,
+      "gate_latency_ms": 94.0897
+    },
+    {
+      "query_id": "hop_3_positive_06",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerRetailStore05",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to PioneerSupplier05 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorPioneerRetailStore05H3B1",
+        "PioneerRetailStore05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 106.9055,
+      "exact_retrieval_latency_ms": 6.458,
+      "gate_latency_ms": 94.6619
+    },
+    {
+      "query_id": "hop_3_positive_07",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowRetailStore06",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to WillowSupplier06 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorWillowRetailStore06H3B1",
+        "WillowRetailStore06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 102.6252,
+      "exact_retrieval_latency_ms": 5.5271,
+      "gate_latency_ms": 92.6035
+    },
+    {
+      "query_id": "hop_3_positive_08",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonRetailStore07",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to CanyonSupplier07 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CanyonRetailStore07",
+        "DistractorCanyonRetailStore07H3B1",
+        "DistractorCanyonRetailStore07H3B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 131.0498,
+      "exact_retrieval_latency_ms": 6.1853,
+      "gate_latency_ms": 120.4918
+    },
+    {
+      "query_id": "hop_3_positive_09",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodRetailStore08",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to RedwoodSupplier08 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorRedwoodRetailStore08H3B1",
+        "DistractorRedwoodRetailStore08H3B2",
+        "RedwoodRetailStore08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 153.7412,
+      "exact_retrieval_latency_ms": 5.6884,
+      "gate_latency_ms": 143.7672
+    },
+    {
+      "query_id": "hop_3_positive_10",
+      "hop_depth": 3,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdRetailStore09",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to BluebirdSupplier09 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "BluebirdRetailStore09",
+        "DistractorBluebirdRetailStore09H3B1",
+        "DistractorBluebirdRetailStore09H3B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 148.6819,
+      "exact_retrieval_latency_ms": 7.1592,
+      "gate_latency_ms": 137.2425
+    },
+    {
+      "query_id": "hop_3_negative_01",
+      "hop_depth": 3,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH3N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarRetailStore00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to UnlinkedSupplierH3N00 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "UnlinkedSupplierH3N00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 109.6396,
+      "exact_retrieval_latency_ms": 7.4989,
+      "gate_latency_ms": 98.2498
+    },
+    {
+      "query_id": "hop_3_negative_02",
+      "hop_depth": 3,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH3N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarRetailStore01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to UnlinkedSupplierH3N01 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "UnlinkedSupplierH3N01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 98.4535,
+      "exact_retrieval_latency_ms": 4.1273,
+      "gate_latency_ms": 89.2931
+    },
+    {
+      "query_id": "hop_3_negative_03",
+      "hop_depth": 3,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH3N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitRetailStore02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to UnlinkedSupplierH3N02 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "UnlinkedSupplierH3N02"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 167.2183,
+      "exact_retrieval_latency_ms": 6.3811,
+      "gate_latency_ms": 155.6539
+    },
+    {
+      "query_id": "hop_3_negative_04",
+      "hop_depth": 3,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH3N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleRetailStore03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to UnlinkedSupplierH3N03 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "UnlinkedSupplierH3N03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 101.5203,
+      "exact_retrieval_latency_ms": 5.411,
+      "gate_latency_ms": 91.0153
+    },
+    {
+      "query_id": "hop_3_negative_05",
+      "hop_depth": 3,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH3N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborRetailStore04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to"
+      ],
+      "query": "Which RetailStore is connected to UnlinkedSupplierH3N04 through supplies_to, ships_to, distributes_to?",
+      "active_entities": [
+        "UnlinkedSupplierH3N04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 103.4066,
+      "exact_retrieval_latency_ms": 5.3463,
+      "gate_latency_ms": 93.2778
+    },
+    {
+      "query_id": "hop_4_positive_01",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarDepartment00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to NorthstarSupplier00 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorNorthstarDepartment00H4B1",
+        "NorthstarDepartment00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 131.0218,
+      "exact_retrieval_latency_ms": 7.8184,
+      "gate_latency_ms": 118.8456
+    },
+    {
+      "query_id": "hop_4_positive_02",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarDepartment01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to CedarSupplier01 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CedarDepartment01",
+        "DistractorCedarDepartment01H4B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 108.5038,
+      "exact_retrieval_latency_ms": 6.8144,
+      "gate_latency_ms": 96.9928
+    },
+    {
+      "query_id": "hop_4_positive_03",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitDepartment02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to SummitSupplier02 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorSummitDepartment02H4B1",
+        "SummitDepartment02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 139.34,
+      "exact_retrieval_latency_ms": 9.0043,
+      "gate_latency_ms": 126.033
+    },
+    {
+      "query_id": "hop_4_positive_04",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleDepartment03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to MapleSupplier03 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorMapleDepartment03H4B1",
+        "DistractorMapleDepartment03H4B2",
+        "MapleDepartment03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 110.6449,
+      "exact_retrieval_latency_ms": 7.0877,
+      "gate_latency_ms": 98.5724
+    },
+    {
+      "query_id": "hop_4_positive_05",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborDepartment04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to HarborSupplier04 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorHarborDepartment04H4B1",
+        "HarborDepartment04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 111.5513,
+      "exact_retrieval_latency_ms": 8.3376,
+      "gate_latency_ms": 98.8036
+    },
+    {
+      "query_id": "hop_4_positive_06",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerDepartment05",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to PioneerSupplier05 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorPioneerDepartment05H4B1",
+        "DistractorPioneerDepartment05H4B2",
+        "PioneerDepartment05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 110.5868,
+      "exact_retrieval_latency_ms": 7.5433,
+      "gate_latency_ms": 98.721
+    },
+    {
+      "query_id": "hop_4_positive_07",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowDepartment06",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to WillowSupplier06 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "DistractorWillowDepartment06H4B1",
+        "WillowDepartment06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 112.5592,
+      "exact_retrieval_latency_ms": 7.0307,
+      "gate_latency_ms": 100.3003
+    },
+    {
+      "query_id": "hop_4_positive_08",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonDepartment07",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to CanyonSupplier07 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [
+        "CanyonDepartment07",
+        "DistractorCanyonDepartment07H4B1",
+        "DistractorCanyonDepartment07H4B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 138.6432,
+      "exact_retrieval_latency_ms": 8.4922,
+      "gate_latency_ms": 125.754
+    },
+    {
+      "query_id": "hop_4_positive_09",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodDepartment08",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to RedwoodSupplier08 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "DistractorRedwoodDepartment08H4B1",
+        "RedwoodDepartment08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 144.1858,
+      "exact_retrieval_latency_ms": 7.0157,
+      "gate_latency_ms": 132.0239
+    },
+    {
+      "query_id": "hop_4_positive_10",
+      "hop_depth": 4,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdDepartment09",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to BluebirdSupplier09 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [
+        "BluebirdDepartment09",
+        "DistractorBluebirdDepartment09H4B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "SUCCESS",
+      "latency_ms": 137.6278,
+      "exact_retrieval_latency_ms": 8.0539,
+      "gate_latency_ms": 125.6908
+    },
+    {
+      "query_id": "hop_4_negative_01",
+      "hop_depth": 4,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH4N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarDepartment00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to UnlinkedSupplierH4N00 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "UnlinkedSupplierH4N00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 109.3598,
+      "exact_retrieval_latency_ms": 3.6579,
+      "gate_latency_ms": 100.8423
+    },
+    {
+      "query_id": "hop_4_negative_02",
+      "hop_depth": 4,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH4N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarDepartment01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to UnlinkedSupplierH4N01 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "UnlinkedSupplierH4N01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 2,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 116.9558,
+      "exact_retrieval_latency_ms": 9.0196,
+      "gate_latency_ms": 103.7071
+    },
+    {
+      "query_id": "hop_4_negative_03",
+      "hop_depth": 4,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH4N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitDepartment02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to UnlinkedSupplierH4N02 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "UnlinkedSupplierH4N02"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 162.2479,
+      "exact_retrieval_latency_ms": 7.5914,
+      "gate_latency_ms": 150.5952
+    },
+    {
+      "query_id": "hop_4_negative_04",
+      "hop_depth": 4,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH4N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleDepartment03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to UnlinkedSupplierH4N03 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "UnlinkedSupplierH4N03"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 137.8441,
+      "exact_retrieval_latency_ms": 7.3199,
+      "gate_latency_ms": 125.7208
+    },
+    {
+      "query_id": "hop_4_negative_05",
+      "hop_depth": 4,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH4N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborDepartment04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in"
+      ],
+      "query": "Which Department is connected to UnlinkedSupplierH4N04 through supplies_to, ships_to, distributes_to, stocks_in?",
+      "active_entities": [
+        "UnlinkedSupplierH4N04"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 3,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "HALLUCINATION_LEAK",
+      "latency_ms": 144.4933,
+      "exact_retrieval_latency_ms": 9.875,
+      "gate_latency_ms": 130.8177
+    },
+    {
+      "query_id": "hop_5_positive_01",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarShelf00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to NorthstarSupplier00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorNorthstarShelf00H5B1",
+        "NorthstarShelf00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 136.1837,
+      "exact_retrieval_latency_ms": 10.287,
+      "gate_latency_ms": 121.4674
+    },
+    {
+      "query_id": "hop_5_positive_02",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarShelf01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to CedarSupplier01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CedarShelf01",
+        "DistractorCedarShelf01H5B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 115.5691,
+      "exact_retrieval_latency_ms": 11.6475,
+      "gate_latency_ms": 100.0872
+    },
+    {
+      "query_id": "hop_5_positive_03",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitShelf02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to SummitSupplier02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorSummitShelf02H5B1",
+        "DistractorSummitShelf02H5B2",
+        "SummitShelf02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 147.8767,
+      "exact_retrieval_latency_ms": 41.6199,
+      "gate_latency_ms": 101.8608
+    },
+    {
+      "query_id": "hop_5_positive_04",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleShelf03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to MapleSupplier03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorMapleShelf03H5B1",
+        "MapleShelf03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 117.3233,
+      "exact_retrieval_latency_ms": 9.822,
+      "gate_latency_ms": 102.9302
+    },
+    {
+      "query_id": "hop_5_positive_05",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborShelf04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to HarborSupplier04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorHarborShelf04H5B1",
+        "DistractorHarborShelf04H5B2",
+        "HarborShelf04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 114.8496,
+      "exact_retrieval_latency_ms": 10.0304,
+      "gate_latency_ms": 100.0804
+    },
+    {
+      "query_id": "hop_5_positive_06",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerShelf05",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to PioneerSupplier05 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorPioneerShelf05H5B1",
+        "PioneerShelf05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 118.6299,
+      "exact_retrieval_latency_ms": 9.338,
+      "gate_latency_ms": 104.6302
+    },
+    {
+      "query_id": "hop_5_positive_07",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowShelf06",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to WillowSupplier06 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorWillowShelf06H5B1",
+        "DistractorWillowShelf06H5B2",
+        "WillowShelf06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 151.0939,
+      "exact_retrieval_latency_ms": 10.697,
+      "gate_latency_ms": 135.9036
+    },
+    {
+      "query_id": "hop_5_positive_08",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonShelf07",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to CanyonSupplier07 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CanyonShelf07",
+        "DistractorCanyonShelf07H5B1",
+        "DistractorCanyonShelf07H5B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 115.193,
+      "exact_retrieval_latency_ms": 10.1992,
+      "gate_latency_ms": 100.868
+    },
+    {
+      "query_id": "hop_5_positive_09",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodShelf08",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to RedwoodSupplier08 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorRedwoodShelf08H5B1",
+        "RedwoodShelf08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 151.0068,
+      "exact_retrieval_latency_ms": 9.515,
+      "gate_latency_ms": 136.7111
+    },
+    {
+      "query_id": "hop_5_positive_10",
+      "hop_depth": 5,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdShelf09",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to BluebirdSupplier09 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "BluebirdShelf09",
+        "DistractorBluebirdShelf09H5B1",
+        "DistractorBluebirdShelf09H5B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 152.1128,
+      "exact_retrieval_latency_ms": 10.0718,
+      "gate_latency_ms": 137.7308
+    },
+    {
+      "query_id": "hop_5_negative_01",
+      "hop_depth": 5,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH5N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarShelf00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to UnlinkedSupplierH5N00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "UnlinkedSupplierH5N00"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 175.6087,
+      "exact_retrieval_latency_ms": 7.4412,
+      "gate_latency_ms": 163.9566
+    },
+    {
+      "query_id": "hop_5_negative_02",
+      "hop_depth": 5,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH5N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarShelf01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to UnlinkedSupplierH5N01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "UnlinkedSupplierH5N01"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 143.711,
+      "exact_retrieval_latency_ms": 4.7564,
+      "gate_latency_ms": 132.6015
+    },
+    {
+      "query_id": "hop_5_negative_03",
+      "hop_depth": 5,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH5N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitShelf02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to UnlinkedSupplierH5N02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "UnlinkedSupplierH5N02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 113.1198,
+      "exact_retrieval_latency_ms": 6.9822,
+      "gate_latency_ms": 102.1282
+    },
+    {
+      "query_id": "hop_5_negative_04",
+      "hop_depth": 5,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH5N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleShelf03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to UnlinkedSupplierH5N03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "UnlinkedSupplierH5N03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 114.1344,
+      "exact_retrieval_latency_ms": 6.2208,
+      "gate_latency_ms": 103.5959
+    },
+    {
+      "query_id": "hop_5_negative_05",
+      "hop_depth": 5,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH5N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborShelf04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to"
+      ],
+      "query": "Which Shelf is connected to UnlinkedSupplierH5N04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to?",
+      "active_entities": [
+        "UnlinkedSupplierH5N04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 114.7718,
+      "exact_retrieval_latency_ms": 5.2912,
+      "gate_latency_ms": 105.2188
+    },
+    {
+      "query_id": "hop_6_positive_01",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarProduct00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to NorthstarSupplier00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorNorthstarProduct00H6B1",
+        "NorthstarProduct00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 173.3497,
+      "exact_retrieval_latency_ms": 12.4796,
+      "gate_latency_ms": 156.2627
+    },
+    {
+      "query_id": "hop_6_positive_02",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarProduct01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to CedarSupplier01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CedarProduct01",
+        "DistractorCedarProduct01H6B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 120.1491,
+      "exact_retrieval_latency_ms": 13.7452,
+      "gate_latency_ms": 102.6081
+    },
+    {
+      "query_id": "hop_6_positive_03",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitProduct02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to SummitSupplier02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorSummitProduct02H6B1",
+        "DistractorSummitProduct02H6B2",
+        "SummitProduct02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 123.2691,
+      "exact_retrieval_latency_ms": 11.3943,
+      "gate_latency_ms": 107.748
+    },
+    {
+      "query_id": "hop_6_positive_04",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleProduct03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to MapleSupplier03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorMapleProduct03H6B1",
+        "MapleProduct03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 124.2689,
+      "exact_retrieval_latency_ms": 11.5422,
+      "gate_latency_ms": 108.0696
+    },
+    {
+      "query_id": "hop_6_positive_05",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborProduct04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to HarborSupplier04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorHarborProduct04H6B1",
+        "DistractorHarborProduct04H6B2",
+        "HarborProduct04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 127.9761,
+      "exact_retrieval_latency_ms": 13.3793,
+      "gate_latency_ms": 110.6751
+    },
+    {
+      "query_id": "hop_6_positive_06",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerProduct05",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to PioneerSupplier05 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorPioneerProduct05H6B1",
+        "DistractorPioneerProduct05H6B2",
+        "PioneerProduct05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 153.4938,
+      "exact_retrieval_latency_ms": 39.9689,
+      "gate_latency_ms": 108.897
+    },
+    {
+      "query_id": "hop_6_positive_07",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowProduct06",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to WillowSupplier06 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorWillowProduct06H6B1",
+        "WillowProduct06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 124.5284,
+      "exact_retrieval_latency_ms": 12.6932,
+      "gate_latency_ms": 108.0188
+    },
+    {
+      "query_id": "hop_6_positive_08",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonProduct07",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to CanyonSupplier07 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CanyonProduct07",
+        "DistractorCanyonProduct07H6B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 126.584,
+      "exact_retrieval_latency_ms": 11.3942,
+      "gate_latency_ms": 109.2744
+    },
+    {
+      "query_id": "hop_6_positive_09",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodProduct08",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to RedwoodSupplier08 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorRedwoodProduct08H6B1",
+        "RedwoodProduct08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 153.345,
+      "exact_retrieval_latency_ms": 12.948,
+      "gate_latency_ms": 136.4101
+    },
+    {
+      "query_id": "hop_6_positive_10",
+      "hop_depth": 6,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdProduct09",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to BluebirdSupplier09 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "BluebirdProduct09",
+        "DistractorBluebirdProduct09H6B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 182.1048,
+      "exact_retrieval_latency_ms": 11.809,
+      "gate_latency_ms": 165.5946
+    },
+    {
+      "query_id": "hop_6_negative_01",
+      "hop_depth": 6,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH6N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarProduct00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to UnlinkedSupplierH6N00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "UnlinkedSupplierH6N00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 124.8425,
+      "exact_retrieval_latency_ms": 11.2801,
+      "gate_latency_ms": 109.5434
+    },
+    {
+      "query_id": "hop_6_negative_02",
+      "hop_depth": 6,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH6N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarProduct01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to UnlinkedSupplierH6N01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "UnlinkedSupplierH6N01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 115.552,
+      "exact_retrieval_latency_ms": 5.6463,
+      "gate_latency_ms": 105.226
+    },
+    {
+      "query_id": "hop_6_negative_03",
+      "hop_depth": 6,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH6N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitProduct02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to UnlinkedSupplierH6N02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "UnlinkedSupplierH6N02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 123.9173,
+      "exact_retrieval_latency_ms": 11.1038,
+      "gate_latency_ms": 107.9024
+    },
+    {
+      "query_id": "hop_6_negative_04",
+      "hop_depth": 6,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH6N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleProduct03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to UnlinkedSupplierH6N03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "UnlinkedSupplierH6N03"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 174.8887,
+      "exact_retrieval_latency_ms": 7.1421,
+      "gate_latency_ms": 163.7566
+    },
+    {
+      "query_id": "hop_6_negative_05",
+      "hop_depth": 6,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH6N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborProduct04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item"
+      ],
+      "query": "Which Product is connected to UnlinkedSupplierH6N04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item?",
+      "active_entities": [
+        "UnlinkedSupplierH6N04"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 149.4789,
+      "exact_retrieval_latency_ms": 7.0099,
+      "gate_latency_ms": 137.0606
+    },
+    {
+      "query_id": "hop_7_positive_01",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "NorthstarSupplier00",
+      "ground_truth_entity": "NorthstarBatchCode00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to NorthstarSupplier00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "NorthstarSupplier00"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorNorthstarBatchCode00H7B1",
+        "NorthstarBatchCode00"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 149.3572,
+      "exact_retrieval_latency_ms": 13.3112,
+      "gate_latency_ms": 130.3036
+    },
+    {
+      "query_id": "hop_7_positive_02",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "CedarSupplier01",
+      "ground_truth_entity": "CedarBatchCode01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to CedarSupplier01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "CedarSupplier01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CedarBatchCode01",
+        "DistractorCedarBatchCode01H7B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 129.5631,
+      "exact_retrieval_latency_ms": 13.6355,
+      "gate_latency_ms": 111.3218
+    },
+    {
+      "query_id": "hop_7_positive_03",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "SummitSupplier02",
+      "ground_truth_entity": "SummitBatchCode02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to SummitSupplier02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "SummitSupplier02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorSummitBatchCode02H7B1",
+        "SummitBatchCode02"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 162.5198,
+      "exact_retrieval_latency_ms": 13.8547,
+      "gate_latency_ms": 144.4411
+    },
+    {
+      "query_id": "hop_7_positive_04",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "MapleSupplier03",
+      "ground_truth_entity": "MapleBatchCode03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to MapleSupplier03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "MapleSupplier03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorMapleBatchCode03H7B1",
+        "DistractorMapleBatchCode03H7B2",
+        "MapleBatchCode03"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 129.3774,
+      "exact_retrieval_latency_ms": 14.2848,
+      "gate_latency_ms": 110.5248
+    },
+    {
+      "query_id": "hop_7_positive_05",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "HarborSupplier04",
+      "ground_truth_entity": "HarborBatchCode04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to HarborSupplier04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "HarborSupplier04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorHarborBatchCode04H7B1",
+        "DistractorHarborBatchCode04H7B2",
+        "HarborBatchCode04"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 127.365,
+      "exact_retrieval_latency_ms": 15.2347,
+      "gate_latency_ms": 107.7344
+    },
+    {
+      "query_id": "hop_7_positive_06",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "PioneerSupplier05",
+      "ground_truth_entity": "PioneerBatchCode05",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to PioneerSupplier05 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "PioneerSupplier05"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorPioneerBatchCode05H7B1",
+        "DistractorPioneerBatchCode05H7B2",
+        "PioneerBatchCode05"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 129.5639,
+      "exact_retrieval_latency_ms": 13.4944,
+      "gate_latency_ms": 110.8506
+    },
+    {
+      "query_id": "hop_7_positive_07",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "WillowSupplier06",
+      "ground_truth_entity": "WillowBatchCode06",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to WillowSupplier06 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "WillowSupplier06"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorWillowBatchCode06H7B1",
+        "WillowBatchCode06"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 159.1724,
+      "exact_retrieval_latency_ms": 15.1255,
+      "gate_latency_ms": 139.7417
+    },
+    {
+      "query_id": "hop_7_positive_08",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "CanyonSupplier07",
+      "ground_truth_entity": "CanyonBatchCode07",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to CanyonSupplier07 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "CanyonSupplier07"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "CanyonBatchCode07",
+        "DistractorCanyonBatchCode07H7B1",
+        "DistractorCanyonBatchCode07H7B2"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 124.2284,
+      "exact_retrieval_latency_ms": 13.6027,
+      "gate_latency_ms": 106.188
+    },
+    {
+      "query_id": "hop_7_positive_09",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "RedwoodSupplier08",
+      "ground_truth_entity": "RedwoodBatchCode08",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to RedwoodSupplier08 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "RedwoodSupplier08"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "DistractorRedwoodBatchCode08H7B1",
+        "RedwoodBatchCode08"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 164.4255,
+      "exact_retrieval_latency_ms": 14.8271,
+      "gate_latency_ms": 144.895
+    },
+    {
+      "query_id": "hop_7_positive_10",
+      "hop_depth": 7,
+      "answerable": true,
+      "start_entity": "BluebirdSupplier09",
+      "ground_truth_entity": "BluebirdBatchCode09",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to BluebirdSupplier09 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "BluebirdSupplier09"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [
+        "BluebirdBatchCode09",
+        "DistractorBluebirdBatchCode09H7B1"
+      ],
+      "exact_target_retrieved": true,
+      "classification": "FALSE_BLOCK",
+      "latency_ms": 158.4882,
+      "exact_retrieval_latency_ms": 13.4865,
+      "gate_latency_ms": 141.1632
+    },
+    {
+      "query_id": "hop_7_negative_01",
+      "hop_depth": 7,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH7N00",
+      "ground_truth_entity": null,
+      "disconnected_target": "NorthstarBatchCode00",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to UnlinkedSupplierH7N00 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "UnlinkedSupplierH7N00"
+      ],
+      "candidate_fact_count": 3,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 201.7741,
+      "exact_retrieval_latency_ms": 13.1519,
+      "gate_latency_ms": 184.2387
+    },
+    {
+      "query_id": "hop_7_negative_02",
+      "hop_depth": 7,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH7N01",
+      "ground_truth_entity": null,
+      "disconnected_target": "CedarBatchCode01",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to UnlinkedSupplierH7N01 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "UnlinkedSupplierH7N01"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 126.5373,
+      "exact_retrieval_latency_ms": 6.2146,
+      "gate_latency_ms": 115.2142
+    },
+    {
+      "query_id": "hop_7_negative_03",
+      "hop_depth": 7,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH7N02",
+      "ground_truth_entity": null,
+      "disconnected_target": "SummitBatchCode02",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to UnlinkedSupplierH7N02 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "UnlinkedSupplierH7N02"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 117.3513,
+      "exact_retrieval_latency_ms": 8.0387,
+      "gate_latency_ms": 105.1358
+    },
+    {
+      "query_id": "hop_7_negative_04",
+      "hop_depth": 7,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH7N03",
+      "ground_truth_entity": null,
+      "disconnected_target": "MapleBatchCode03",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to UnlinkedSupplierH7N03 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "UnlinkedSupplierH7N03"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 115.2376,
+      "exact_retrieval_latency_ms": 3.8781,
+      "gate_latency_ms": 106.6686
+    },
+    {
+      "query_id": "hop_7_negative_05",
+      "hop_depth": 7,
+      "answerable": false,
+      "start_entity": "UnlinkedSupplierH7N04",
+      "ground_truth_entity": null,
+      "disconnected_target": "HarborBatchCode04",
+      "predicates": [
+        "supplies_to",
+        "ships_to",
+        "distributes_to",
+        "stocks_in",
+        "assigned_to",
+        "holds_item",
+        "has_batch"
+      ],
+      "query": "Which BatchCode is connected to UnlinkedSupplierH7N04 through supplies_to, ships_to, distributes_to, stocks_in, assigned_to, holds_item, has_batch?",
+      "active_entities": [
+        "UnlinkedSupplierH7N04"
+      ],
+      "candidate_fact_count": 2,
+      "selected_fact_count": 0,
+      "retrieved_entities": [],
+      "exact_target_retrieved": false,
+      "classification": "CORRECT_REFUSAL",
+      "latency_ms": 158.0334,
+      "exact_retrieval_latency_ms": 14.286,
+      "gate_latency_ms": 139.4817
+    }
+  ]
+}
