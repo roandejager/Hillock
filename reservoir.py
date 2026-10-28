@@ -354,6 +354,102 @@ class HyperdimensionalReservoir:
         return scores[:top_k]
 
 
+class PhasorReservoir:
+    """Complex-valued vector-symbolic operations on the unit torus."""
+
+    def __init__(self, dimension: int = 2048, seed: int = 42):
+        if dimension <= 0:
+            raise ValueError("dimension must be a positive integer.")
+        if not isinstance(seed, int):
+            raise TypeError("seed must be an integer.")
+
+        self.D = dimension
+        self.seed = seed
+        self.codebook: Dict[str, np.ndarray] = {}
+
+    def _validate_vector(self, vector: np.ndarray, name: str) -> np.ndarray:
+        value = np.asarray(vector, dtype=np.complex64)
+        if value.shape != (self.D,):
+            raise ValueError(f"{name} must have shape ({self.D},).")
+        if not np.all(np.isfinite(value)):
+            raise ValueError(f"{name} must contain only finite values.")
+        return value
+
+    def allocate_codevector(self, name_id: str) -> np.ndarray:
+        """Allocate or return the deterministic unit-phasor codevector for an ID."""
+        if not isinstance(name_id, str):
+            raise TypeError("name_id must be a string.")
+        if not name_id:
+            raise ValueError("name_id must not be empty.")
+        if name_id not in self.codebook:
+            seed_material = f"{self.seed}:{name_id}".encode("utf-8")
+            seed = int.from_bytes(hashlib.sha256(seed_material).digest()[:8], "little")
+            rng = np.random.default_rng(seed)
+            phases = rng.uniform(-np.pi, np.pi, size=self.D).astype(np.float32)
+            codevector = (
+                np.cos(phases) + 1j * np.sin(phases)
+            ).astype(np.complex64)
+            self.codebook[name_id] = codevector
+        return self.codebook[name_id]
+
+    def bind(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """Bind two phasor vectors by elementwise complex multiplication."""
+        left = self._validate_vector(a, "a")
+        right = self._validate_vector(b, "b")
+        return np.multiply(left, right, dtype=np.complex64)
+
+    def unbind(self, composite: np.ndarray, factor: np.ndarray) -> np.ndarray:
+        """Unbind a factor using its complex conjugate."""
+        bound = self._validate_vector(composite, "composite")
+        key = self._validate_vector(factor, "factor")
+        return np.multiply(bound, np.conjugate(key), dtype=np.complex64)
+
+    def superpose(
+        self, vectors: List[np.ndarray], normalize: bool = True
+    ) -> np.ndarray:
+        """Sum vectors coordinatewise, optionally projecting the sum to the torus."""
+        result = np.zeros(self.D, dtype=np.complex64)
+        for index, vector in enumerate(vectors):
+            result += self._validate_vector(vector, f"vectors[{index}]")
+        return self.normalize(result) if normalize else result
+
+    def normalize(self, z: np.ndarray) -> np.ndarray:
+        """Project each nonzero coordinate to unit magnitude; map zero to 1+0j."""
+        value = self._validate_vector(z, "z")
+        magnitude = np.abs(value)
+        result = np.ones(self.D, dtype=np.complex64)
+        np.divide(value, magnitude, out=result, where=magnitude > 0)
+        return result
+
+    def similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        """Return the normalized real Hermitian inner product."""
+        left = self._validate_vector(a, "a")
+        right = self._validate_vector(b, "b")
+        score = float(np.real(np.vdot(left, right)) / self.D)
+        return float(np.clip(score, -1.0, 1.0))
+
+    def bind_path(self, entities: List[str], relations: List[str]) -> np.ndarray:
+        """Bind E0 * R1 * E1 * ... * Rn * En as one commutative path vector."""
+        if not entities:
+            raise ValueError("entities must contain at least one entity.")
+        if len(entities) != len(relations) + 1:
+            raise ValueError("entities must contain exactly one more item than relations.")
+        if any(not isinstance(entity, str) or not entity for entity in entities):
+            raise ValueError("entity IDs must be non-empty strings.")
+        if any(not isinstance(relation, str) or not relation for relation in relations):
+            raise ValueError("relation IDs must be non-empty strings.")
+
+        path_vector = self.allocate_codevector(f"entity:{entities[0]}").copy()
+        for index, relation in enumerate(relations):
+            relation_vector = self.allocate_codevector(f"relation:{relation}")
+            next_entity_vector = self.allocate_codevector(
+                f"entity:{entities[index + 1]}"
+            )
+            path_vector = self.bind(path_vector, relation_vector)
+            path_vector = self.bind(path_vector, next_entity_vector)
+        return path_vector
+
+
 # Self-test execution block
 if __name__ == "__main__":
     print("=" * 60)
