@@ -218,6 +218,10 @@ class IntegratedHillock:
             logger.error(f"LLM streaming generator error: {e}")
             yield ""
 
+    def query_ollama_stream(self, prompt: str, system_prompt: str) -> str:
+        """Non-streaming collector consuming the Ollama generator."""
+        return "".join(self.query_ollama_generator(prompt, system_prompt)).strip()
+
     def select_answering_facts(self, query: str, facts: List[Tuple[str, str, str, str]], threshold: float = HDC_THRESHOLD) -> List[Tuple[str, str, str, str, float]]:
         if not facts:
             return []
