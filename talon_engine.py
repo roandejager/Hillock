@@ -418,6 +418,49 @@ class ZeroShotRelationExtractor:
         self.device = device
         self.model = None
 
+    @staticmethod
+    def _is_negated_relation(doc, label: str) -> bool:
+        relation_verb = label.lower().split("_")[0]
+        if label.lower() in {"born_in", "place_of_birth"}:
+            relation_verbs = {"bear", "born"}
+        elif label.lower() in {"died_in", "place_of_death"}:
+            relation_verbs = {"die", "died"}
+        else:
+            relation_verbs = {relation_verb}
+            if relation_verb.endswith("ed"):
+                relation_verbs.add(relation_verb[:-2])
+            if relation_verb.endswith("d"):
+                relation_verbs.add(relation_verb[:-1])
+            if relation_verb.endswith("ied"):
+                relation_verbs.add(relation_verb[:-3] + "y")
+
+        def matches_relation_verb(token) -> bool:
+            return (
+                token.text.lower() in relation_verbs
+                or getattr(token, "lemma_", "").lower() in relation_verbs
+            )
+
+        tokens = list(doc)
+        if {"neither", "nor"}.issubset({token.text.lower() for token in tokens}):
+            if any(matches_relation_verb(token) for token in tokens):
+                return True
+
+        negation_tokens = {"not", "never", "wasn't", "didn't", "neither", "nor", "n't"}
+        for token in tokens:
+            if token.text.lower() not in negation_tokens and getattr(token, "dep_", "").lower() != "neg":
+                continue
+
+            head = getattr(token, "head", token)
+            for _ in range(4):
+                if matches_relation_verb(head):
+                    return True
+                next_head = getattr(head, "head", head)
+                if next_head is head:
+                    break
+                head = next_head
+
+        return False
+
     def extract_relations(self, sentence: str, candidate_labels: List[str], threshold: float = 0.30) -> List[Dict[str, str]]:
         if self.model is None:
             if not self.load_model():
@@ -486,6 +529,10 @@ class ZeroShotRelationExtractor:
                 label = item.get("label", "").replace(" ", "_")
 
                 if not clean_head or not clean_tail or not label:
+                    continue
+
+                if self._is_negated_relation(doc, label):
+                    logger.info(f"Skipping negated assertion: '{sentence}'")
                     continue
 
                 if clean_head.lower() == clean_tail.lower():

@@ -80,7 +80,7 @@ def generate_test_assets():
         {"question": "Did Nikola Tesla work with Isaac Newton?", "answerable": False},
         {"question": "What did Albert Einstein discover?", "answerable": False},
         {"question": "Where was Thomas Edison born?", "answerable": False},
-        {"question": "Who cracked Enigma?", "answerable": False},
+        {"question": "Who cracked Enigma?", "expected_subject": "Alan_Turing", "expected_predicate": "cracked", "expected_object": "Enigma", "answerable": True},
         {"question": "What did Richard Feynman discover?", "answerable": False},
         {"question": "What did Claude Shannon patent?", "answerable": False},
         {"question": "Where was Plato born?", "answerable": False},

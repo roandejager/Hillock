@@ -228,13 +228,38 @@ class IntegratedHillock:
 
         # v0.9: HYDRA Dilution Fix - Filter out function/stop words before MaxSim calculation
         stop_words = {
-            "who", "what", "where", "when", "why", "how", "which", "whom", 
+            "what", "how", "which", "whom",
             "was", "is", "were", "are", "did", "do", "does", "has", "had",
             "the", "a", "an", "and", "or", "in", "on", "at", "to", "of", "for", "with", "by"
         }
         
         raw_tokens = set(re.sub(r"[^\w\s]", "", query).lower().split())
         query_tokens = raw_tokens - stop_words
+
+        if re.search(r"\bwhen\b|\bwhat\s+(?:year|date)\b", query.lower()):
+            temporal_predicates = {"born_on", "date_of_birth", "birth_date", "occurred_on"}
+
+            def is_temporal_fact(fact: Tuple[str, str, str, str]) -> bool:
+                _, predicate, obj, _ = fact
+                predicate = predicate.lower()
+                return (
+                    predicate in temporal_predicates
+                    or any(term in predicate.split("_") for term in ("date", "year", "time", "timestamp"))
+                    or re.search(r"\b\d{3,4}\b|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", obj) is not None
+                )
+
+            facts = [fact for fact in facts if is_temporal_fact(fact)]
+            if not facts:
+                return []
+
+        if re.match(r"\s*who\s+(?:is|was|are|were)\b", query.lower()):
+            identity_predicates = {
+                "identity", "is_a", "instance_of", "occupation",
+                "person_type", "profession", "known_as",
+            }
+            facts = [fact for fact in facts if fact[1].lower() in identity_predicates]
+            if not facts:
+                return []
         
         # Fallback: if the user literally just typed "who is the", don't empty the query entirely
         if not query_tokens:
@@ -412,7 +437,7 @@ class IntegratedHillock:
                 "You are a professional fact renderer. Translate ONLY the provided fact into one sentence. "
                 "Do not add any extra context, historical assumptions, or details."
             )
-            render_prompt = f"Fact: {facts_str}"
+            render_prompt = f"Fact: {facts_str}\nQuestion: {query}"
 
         # 3. Handle BALANCED Mode (Now cites sources)
         elif self.verbosity_mode == "BALANCED":

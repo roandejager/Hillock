@@ -42,7 +42,7 @@ def print_system_dashboard(hillock: IntegratedHillock) -> None:
         ram_str = f"{ram.used / (1024**3):.1f} GB / {ram.total / (1024**3):.1f} GB ({ram.percent}% Used)"
 
     print("\n" + "="*70)
-    print("  ⛰️  HILLOCK v1.0.0 | Local Neuro-Symbolic Engine")
+    print("  ⛰️  HILLOCK v1.0.2 | Local Neuro-Symbolic Engine")
     print("  💬 Join our Developer Discord: https://discord.gg/BGUPNBcVdp")
     print("  ⭐ Commercial License & Docs:  https://github.com/roandejager/Hillock")
     print("="*70)
