@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![VRAM](https://img.shields.io/badge/VRAM-%3C1.2GB-brightgreen)
-![Status](https://img.shields.io/badge/status-v1.0.0_Stable-orange)
+![Status](https://img.shields.io/badge/status-v1.0.2_Stable-orange)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/BGUPNBcVdp)
 
 Traditional local RAG setups are pretty bloated. Running massive vector databases and burning an 8B model just to read documents eats up your VRAM, slows down your machine, and still makes things up when it does not know the answer.
@@ -117,7 +117,7 @@ python verify_hillock.py
 
 ## Roadmap: Moving Toward v2.0
 
-With **v1.0.0**, the core engine is locked down and stable: the SQLite graph, the aliasing layer, and the local API are fully set up for real-world projects.
+With **v1.0.2**, the core engine is locked down and stable: the SQLite graph, the aliasing layer, and the local API are fully set up for real-world projects.
 
 Our next research phase focuses on **v2.0**, moving beyond basic vector matching into deeper logic:
 

@@ -13,7 +13,7 @@ from engine import IntegratedHillock
 from config import DB_FILE
 
 # Initialize the FastAPI app and the Hillock Memory Engine
-app = FastAPI(title="Hillock API", version="1.0.0")
+app = FastAPI(title="Hillock API", version="1.0.2")
 engine = IntegratedHillock(DB_FILE)
 
 class Message(BaseModel):
@@ -36,7 +36,7 @@ def health_check():
     return {
         "status": "online",
         "message": "Hillock API is running! Point your AI client to /v1/chat/completions",
-        "version": "1.0.0"
+        "version": "1.0.2"
     }
 
 @app.get("/v1/models")
