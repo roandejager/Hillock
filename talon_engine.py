@@ -19,14 +19,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 
-# 1. Monkey-patch HuggingFace transformers security block for torch.load
-try:
-    import transformers.utils.import_utils
-    import transformers.modeling_utils
-    transformers.utils.import_utils.check_torch_load_is_safe = lambda: None
-    transformers.modeling_utils.check_torch_load_is_safe = lambda: None
-except Exception:
-    pass
+# removed the monkey patch because it disables the safetly check, which is stupid (if your reading this your behind your computer too much :)
 
 # 2. Patch missing Hugging Face mapping attribute in older Fastcoref model class
 try:
