@@ -3,6 +3,8 @@ Hillock Ingestor Module (TALON Integration - v0.4.1 Precision)
 Routes bulk document extractions through the TALON Engine.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import logging
@@ -10,7 +12,10 @@ import time
 import datetime
 from pathlib import Path
 import numpy as np
-from typing import List, Dict, Tuple, Set, Optional
+from typing import List, Dict, Tuple, Set, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from talon_engine import TalonEngine
 
 try:
     import psutil
@@ -24,9 +29,9 @@ except ImportError:
 
 # Import TALON Engine
 try:
-    from talon_engine import TalonEngine
+    from talon_engine import TalonEngine as _TalonEngine
 except ImportError:
-    TalonEngine = None
+    _TalonEngine = None
 
 logger = logging.getLogger("Hillock.Ingestor")
 
@@ -36,14 +41,14 @@ _talon_instance = None
 def get_talon_engine() -> Optional[TalonEngine]:
     """Lazy-loads and caches the singleton TalonEngine instance."""
     global _talon_instance
-    if _talon_instance is None and TalonEngine is not None:
+    if _talon_instance is None and _TalonEngine is not None:
         try:
             logger.info("Initializing TALON Engine inside Ingestor...")
             import torch
             # Dynamically detect if a GPU is available, otherwise default to CPU
             target_device = "cuda:0" if torch.cuda.is_available() else "cpu"
             logger.info(f"Routing TALON extractions to device: {target_device}")
-            _talon_instance = TalonEngine(device=target_device)
+            _talon_instance = _TalonEngine(device=target_device)
         except Exception as e:
             logger.error(f"Failed to initialize TALON Engine: {e}")
             _talon_instance = None
