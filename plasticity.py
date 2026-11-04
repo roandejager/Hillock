@@ -39,7 +39,7 @@ class HebbianPlasticityEngine:
                     cursor.execute("""
                                    INSERT INTO hebbian_weights (entity_a, entity_b, weight)
                                    VALUES (?, ?, ?) ON CONFLICT(entity_a, entity_b) DO
-                                   UPDATE SET weight = excluded.weight
+                                   UPDATE SET weight = weight + excluded.weight * (1.0 - weight)
                                    """, (ent_a, ent_b, new_w))
 
             cursor.execute("SELECT entity_a, entity_b, weight FROM hebbian_weights")
