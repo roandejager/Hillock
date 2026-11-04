@@ -177,20 +177,6 @@ A synthetic stress harness testing multi-hop relational retrieval across 1 to 7 
 **Standardized Public Benchmarks:**  
 We are currently setting up full evaluation runs against recognized industry harnesses (including Open RAG Bench and Enterprise RAG benchmarks) to publish comparative latency, recall, and memory ablation charts directly here on the README ASAP.
 
-## Running the Labyrinth Benchmark
-
-Run the reproducible v1.0.0 multi-hop baseline with an isolated temporary database:
-
-```bash
-python benchmark_labyrinth.py
-```
-
-The raw results are written to `benchmark_results/labyrinth_v1.0.0.json`. To plot comparisons from saved `labyrinth_v*.json` results (requires optional `matplotlib`):
-
-```bash
-python benchmark_labyrinth.py --plot
-```
-
 ---
 
 ## Roadmap: Moving Toward v2.0
