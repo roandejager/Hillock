@@ -335,8 +335,10 @@ class ONNXDynamicPredicateRouter:
             return True
 
         try:
-            import onnxruntime as ort
+            import importlib
             from transformers import AutoTokenizer
+
+            ort = importlib.import_module("onnxruntime")
 
             options = ort.SessionOptions()
             options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
