@@ -13,7 +13,7 @@ from engine import IntegratedHillock
 from config import DB_FILE
 
 # Initialize the FastAPI app and the Hillock Memory Engine
-app = FastAPI(title="Hillock API", version="1.0.2")
+app = FastAPI(title="Hillock API", version="1.1.0")
 engine = IntegratedHillock(DB_FILE)
 
 class Message(BaseModel):

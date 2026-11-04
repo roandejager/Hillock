@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![VRAM](https://img.shields.io/badge/VRAM-%3C1.2GB-brightgreen)
-![Status](https://img.shields.io/badge/status-v1.0.2_Stable-orange)
+![Status](https://img.shields.io/badge/status-v1.1.0_Stable-orange)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/BGUPNBcVdp)
 
 Traditional local RAG setups are pretty bloated. Running massive vector databases and burning an 8B model just to read documents eats up your VRAM, slows down your machine, and still makes things up when it does not know the answer.
