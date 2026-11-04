@@ -8,6 +8,7 @@ import re
 import logging
 import time
 import datetime
+from pathlib import Path
 import numpy as np
 from typing import List, Dict, Tuple, Set, Optional
 
@@ -50,17 +51,38 @@ def get_talon_engine() -> Optional[TalonEngine]:
 
 
 def get_raw_document_text(file_path: str) -> str:
-    """Reads raw TXT or PDF files into a single document string."""
-    ext = os.path.splitext(file_path)[1].lower()
+    """ 
+    Safely read a text or PDF file from within the project directory
+    Prevenst path traversal attakcs (e.g., /ingest ../../etc/passwd)
+    """
+    # resolve to absolute path
+    requested_path = Path(file_path).resolve()
+
+    # Get project root directory
+    project_root = Path(__file__).parent.resolve()
+
+    # Ensure the requested file is within the project directory
+    try:
+        requested_path.relative_to(project_root)
+    except ValueError:
+        raise ValueError(
+            f"Access denied: '{file_path}' is outside the project directory."
+        )
+
+    # Check file exists and is a file
+    if not requested_path.is_file():
+        raise FileNotFoundError(f"File '{file_path}' does not exist or is not a file.")
+
+    ext = requested_path.suffix.lower()
 
     if ext == ".pdf":
         if pypdf is None:
-            raise ImportError("The 'pypdf' package is required for PDFs. Run 'pip install pypdf'.")
-        reader = pypdf.PdfReader(file_path)
+            raise ImportError("pypdf is required to read PDF files. Install it via 'pip install pypdf'.")
+        reader = pypdf.PdfReader(str(requested_path))
         pages_text = [page.extract_text() for page in reader.pages if page.extract_text()]
         return "\n".join(pages_text)
     else:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(requested_path, "r", encoding="utf-8") as f:
             return f.read()
 
 
