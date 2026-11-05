@@ -68,20 +68,6 @@ class SQLiteKnowledgeGraph:
             """)
             conn.commit()
 
-    def clear_and_reinitialize(self) -> None:
-        """Safe SQL-level reset."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = OFF;")
-            cursor.execute("DROP TABLE IF EXISTS hdc_reservoirs;")
-            cursor.execute("DROP TABLE IF EXISTS hebbian_weights;")
-            cursor.execute("DROP TABLE IF EXISTS relations;")
-            cursor.execute("DROP TABLE IF EXISTS entity_aliases;")
-            cursor.execute("DROP TABLE IF EXISTS entities;")
-            conn.commit()
-        self._initialize_db()
-        self.seed_initial_knowledge()
-
     def seed_initial_knowledge(self) -> None:
         entities = [
             ("France", "France", "Country"),
