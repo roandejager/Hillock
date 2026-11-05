@@ -254,6 +254,10 @@ class HyperdimensionalReservoir:
             decay = self.decay
         bound_token = np.roll(self.state, shift=1) * token_hv
         self.state = (decay * self.state) + token_hv.astype(np.float64) + bound_token
+        # bound l2 to normalize prevent magnitude explosion (which we had earlier)
+        norm = np.linalg.norm(self.state)
+        if norm > 0:
+            self.state /= norm
         return self.state
 
     def get_bipolar_state(self) -> np.ndarray:
