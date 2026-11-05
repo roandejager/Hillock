@@ -134,32 +134,37 @@ class SQLiteKnowledgeGraph:
         self.update_relations_batch([(source_id, predicate, new_target_id)], source_type, target_type)
 
     def update_relations_batch(self, triples: List[Tuple[str, str, str]],
-                               source_type: str = "Generic", target_type: str = "Generic",
-                               source_doc: str = "manual_entry") -> None:
-        """Micro-batched relation insertion executing inside a single SQL transaction."""
+                           source_type: str = "Generic", target_type: str = "Generic",
+                           source_doc: str = "manual_entry") -> None:
         if not triples:
             return
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = ON;")
-            cursor.execute("BEGIN TRANSACTION;")
-            for source_id, predicate, new_target_id in triples:
-                src_key = source_id.strip().replace(" ", "_")
-                tgt_key = new_target_id.strip().replace(" ", "_")
+            try:
+                cursor.execute("BEGIN TRANSACTION;")
+                for source_id, predicate, new_target_id in triples:
+                    src_key = source_id.strip().replace(" ", "_")
+                    tgt_key = new_target_id.strip().replace(" ", "_")
 
-                cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (src_key, src_key.replace("_", " "), source_type))
-                cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", (tgt_key, tgt_key.replace("_", " "), target_type))
+                    cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", 
+                                (src_key, src_key.replace("_", " "), source_type))
+                    cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", 
+                                (tgt_key, tgt_key.replace("_", " "), target_type))
 
-                # v0.9: Enforce single-valued predicate overwrite
-                if predicate in SINGLE_VALUED_PREDICATES:
-                    cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", (src_key, predicate))
+                    if predicate in SINGLE_VALUED_PREDICATES:
+                        cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", 
+                                    (src_key, predicate))
 
-                cursor.execute("""
-                    INSERT OR REPLACE INTO relations (source_id, predicate, target_id, source_doc) 
-                    VALUES (?, ?, ?, ?)
-                """, (src_key, predicate, tgt_key, source_doc))
-            conn.commit()
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO relations (source_id, predicate, target_id, source_doc) 
+                        VALUES (?, ?, ?, ?)
+                    """, (src_key, predicate, tgt_key, source_doc))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
         with sqlite3.connect(self.db_path) as conn:
