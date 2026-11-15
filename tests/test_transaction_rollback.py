@@ -5,6 +5,7 @@ import sqlite3
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from database import SQLiteKnowledgeGraph
+from contextlib import closing
 
 class TransactionRollbackTests(unittest.TestCase):
     def setUp(self):
@@ -24,7 +25,7 @@ class TransactionRollbackTests(unittest.TestCase):
     def test_normal_insert_works(self):
         """Baseline: normal insert works."""
         self.db.update_relations_batch([('A', 'rel', 'B')])
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM relations")
             count = cursor.fetchone()[0]

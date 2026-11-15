@@ -51,7 +51,7 @@ class IntegratedHillock:
         ambiguous_terms = {"he", "she", "it", "they", "this", "that", "who", "whom", "which", "his", "her"}
         ambiguous_facts = []
         
-        with sqlite3.connect(self.kg.db_path) as conn:
+        with self.kg._connect() as conn:
             cursor = conn.cursor()
             # Fetch all facts
             cursor.execute("SELECT source_id, predicate, target_id, source_doc FROM relations")
@@ -68,9 +68,8 @@ class IntegratedHillock:
         new_s_clean = self.resolve_entity_identity(new_s)
         new_o_clean = self.resolve_entity_identity(new_o)
         
-        with sqlite3.connect(self.kg.db_path) as conn:
+        with self.kg._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")
             # Delete the old garbage fact
             cursor.execute("DELETE FROM relations WHERE source_id=? AND predicate=? AND target_id=?", (old_s, p, old_o))
             
@@ -135,7 +134,7 @@ class IntegratedHillock:
 
         # Ensure canonical exists in DB before merging
         if canonical_id not in self.kg.get_all_entity_ids():
-            with sqlite3.connect(self.kg.db_path) as conn:
+            with self.kg._connect() as conn:
                 conn.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, 'Generic')", (canonical_id, canonical_id.replace("_", " ")))
 
         # 1. Merge in SQLite (Relations & Synapses)
@@ -333,7 +332,6 @@ class IntegratedHillock:
             
             # Fallback for STRICT and BALANCED modes
             msg = "Hillock > Hello. Ready for factual questions."
-            print(msg)
             return msg, [], [], "GREETING"
 
         active_entities = self.link_entities(query)
@@ -390,7 +388,6 @@ class IntegratedHillock:
                         return f"Hillock (Renderer) > {llm_response}", primed_info, hdc_fingerprint, "RENDER_SUCCESS"
                     else:
                         fallback_msg = f"Hillock (Simulated) > Handshake resolved: {facts_str}."
-                        print(fallback_msg)
                         return fallback_msg, primed_info, hdc_fingerprint, "RENDER_FALLBACK"
 
             # --- GATE FAILED: Trigger Refusal Logic ---
@@ -398,7 +395,6 @@ class IntegratedHillock:
         # If the user is in STRICT mode, keep it fast and robotic
         if self.verbosity_mode == "STRICT":
             refusal_msg = "Hillock > I do not have verified information about that."
-            print(refusal_msg)
             return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
         # If in BALANCED or CONVERSATIONAL mode, let the LLM render a polite refusal
@@ -414,7 +410,6 @@ class IntegratedHillock:
         else:
             # Fallback just in case Ollama crashes
             refusal_msg = "Hillock (Simulated) > I do not have verified information about that."
-            print(refusal_msg)
             return refusal_msg, [], hdc_fingerprint, "DETERMINISTIC_GATED_FALLBACK"
 
     def _get_mode_prompts(self, query: str, facts_str: str, primed_info: list, hdc_fingerprint: list, is_refusal: bool = False) -> Tuple[str, str]:

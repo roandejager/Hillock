@@ -1,8 +1,9 @@
 """Global configurations and hyperparameter settings for the Hillock."""
 
-# File and Model Paths
+# Version & File/Model Paths
+HILLOCK_VERSION = "1.2.0-dev"
 DB_FILE = "hillock_kg.db"
-OLLAMA_MODEL = "llama3.2" # or "phi:mini" if you prefer
+OLLAMA_MODEL = "qwen2:1.5b"
 LLM_BASE_URL = "http://127.0.0.1:11434/v1/chat/completions"
 
 # Schema Constraints (v0.9)

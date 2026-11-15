@@ -3,7 +3,8 @@
 import sqlite3
 import re
 import numpy as np
-from typing import List, Tuple, Optional, Set
+from contextlib import contextmanager
+from typing import Iterator, List, Tuple, Optional, Set
 from config import DB_FILE, SINGLE_VALUED_PREDICATES
 
 class SQLiteKnowledgeGraph:
@@ -12,10 +13,21 @@ class SQLiteKnowledgeGraph:
         self.db_path = db_path
         self._initialize_db()
 
+    @contextmanager
+    def _connect(self, foreign_keys: bool = True) -> Iterator[sqlite3.Connection]:
+        """Opens a SQLite connection, runs a transaction, and always closes the handle."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            if foreign_keys:
+                conn.execute("PRAGMA foreign_keys = ON;")
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _initialize_db(self) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")
             cursor.execute("PRAGMA journal_mode = WAL;")
             cursor.execute("PRAGMA synchronous = NORMAL;")
             cursor.execute("""
@@ -90,7 +102,7 @@ class SQLiteKnowledgeGraph:
             ("Alan_Turing", "born_in", "London"),
             ("Alan_Turing", "cracked", "Enigma")
         ]
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.executemany("INSERT OR IGNORE INTO entities VALUES (?, ?, ?)", entities)
             cursor.executemany("INSERT OR IGNORE INTO relations (source_id, predicate, target_id) VALUES (?, ?, ?)", relations)
@@ -98,7 +110,7 @@ class SQLiteKnowledgeGraph:
 
     def clear_and_reinitialize(self) -> None:
         """Safe SQL-level reset."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect(foreign_keys=False) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys = OFF;")
             cursor.execute("DROP TABLE IF EXISTS hebbian_weights;")
@@ -111,19 +123,19 @@ class SQLiteKnowledgeGraph:
         self.seed_initial_knowledge()
 
     def get_entity_count(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM entities")
             return cursor.fetchone()[0]
 
     def get_relations_count(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM relations")
             return cursor.fetchone()[0]
 
     def get_synapse_count(self) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM hebbian_weights")
             return cursor.fetchone()[0]
@@ -139,9 +151,8 @@ class SQLiteKnowledgeGraph:
         if not triples:
             return
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")
             try:
                 cursor.execute("BEGIN TRANSACTION;")
                 for source_id, predicate, new_target_id in triples:
@@ -167,7 +178,7 @@ class SQLiteKnowledgeGraph:
                 raise
 
     def query_relation(self, source_id: str, predicate: str) -> Optional[str]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT target_id FROM relations WHERE source_id = ? AND predicate = ?", (source_id, predicate))
             result = cursor.fetchone()
@@ -193,13 +204,13 @@ class SQLiteKnowledgeGraph:
         placeholders = ", ".join(["?"] * len(active_entities))
         query = f"SELECT source_id, predicate, target_id, source_doc FROM relations WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})"
         params = list(active_entities) + list(active_entities)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return cursor.fetchall()
 
     def get_all_entity_ids(self) -> List[str]:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM entities")
             return [row[0] for row in cursor.fetchall()]
@@ -211,7 +222,7 @@ class SQLiteKnowledgeGraph:
         bipolar_vector[bipolar_vector == 0] = 1
         vector_bytes = bipolar_vector.tobytes()
         
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO hdc_reservoirs (doc_id, reservoir_vector, bound_path_count) 
@@ -221,42 +232,44 @@ class SQLiteKnowledgeGraph:
 
     def get_canonical_id(self, entity_id: str) -> Optional[str]:
         """Checks if an entity string is a known alias and returns its canonical root."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT canonical_id FROM entity_aliases WHERE alias_id = ?", (entity_id,))
             res = cursor.fetchone()
             return res[0] if res else None
 
     def add_alias(self, alias_id: str, canonical_id: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")
             cursor.execute("INSERT OR REPLACE INTO entity_aliases (alias_id, canonical_id) VALUES (?, ?)", (alias_id, canonical_id))
             conn.commit()
 
     def merge_nodes(self, old_id: str, canonical_id: str) -> None:
         """Collapses old_id into canonical_id, migrating all relations and synapses."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys = ON;")
-            cursor.execute("BEGIN TRANSACTION;")
-            
-            # 1. Migrate Relations (Source)
-            cursor.execute("UPDATE OR IGNORE relations SET source_id = ? WHERE source_id = ?", (canonical_id, old_id))
-            cursor.execute("DELETE FROM relations WHERE source_id = ?", (old_id,))
-            
-            # 2. Migrate Relations (Target)
-            cursor.execute("UPDATE OR IGNORE relations SET target_id = ? WHERE target_id = ?", (canonical_id, old_id))
-            cursor.execute("DELETE FROM relations WHERE target_id = ?", (old_id,))
-            
-            # 3. Migrate Synapses (Hebbian Weights)
-            cursor.execute("UPDATE OR IGNORE hebbian_weights SET entity_a = ? WHERE entity_a = ?", (canonical_id, old_id))
-            cursor.execute("DELETE FROM hebbian_weights WHERE entity_a = ?", (old_id,))
-            cursor.execute("UPDATE OR IGNORE hebbian_weights SET entity_b = ? WHERE entity_b = ?", (canonical_id, old_id))
-            cursor.execute("DELETE FROM hebbian_weights WHERE entity_b = ?", (old_id,))
-            
-            # 4. Register the Alias and Delete the Old Node
-            cursor.execute("INSERT OR REPLACE INTO entity_aliases (alias_id, canonical_id) VALUES (?, ?)", (old_id, canonical_id))
-            cursor.execute("DELETE FROM entities WHERE id = ?", (old_id,))
-            
-            conn.commit()
+            try:
+                cursor.execute("BEGIN TRANSACTION;")
+
+                # 1. Migrate Relations (Source)
+                cursor.execute("UPDATE OR IGNORE relations SET source_id = ? WHERE source_id = ?", (canonical_id, old_id))
+                cursor.execute("DELETE FROM relations WHERE source_id = ?", (old_id,))
+
+                # 2. Migrate Relations (Target)
+                cursor.execute("UPDATE OR IGNORE relations SET target_id = ? WHERE target_id = ?", (canonical_id, old_id))
+                cursor.execute("DELETE FROM relations WHERE target_id = ?", (old_id,))
+
+                # 3. Migrate Synapses (Hebbian Weights)
+                cursor.execute("UPDATE OR IGNORE hebbian_weights SET entity_a = ? WHERE entity_a = ?", (canonical_id, old_id))
+                cursor.execute("DELETE FROM hebbian_weights WHERE entity_a = ?", (old_id,))
+                cursor.execute("UPDATE OR IGNORE hebbian_weights SET entity_b = ? WHERE entity_b = ?", (canonical_id, old_id))
+                cursor.execute("DELETE FROM hebbian_weights WHERE entity_b = ?", (old_id,))
+
+                # 4. Register the Alias and Delete the Old Node
+                cursor.execute("INSERT OR REPLACE INTO entity_aliases (alias_id, canonical_id) VALUES (?, ?)", (old_id, canonical_id))
+                cursor.execute("DELETE FROM entities WHERE id = ?", (old_id,))
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
