@@ -451,3 +451,23 @@ class SQLiteKnowledgeGraph:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return [row[:4] for row in cursor.fetchall()]
+
+    def get_recent_snippets(
+        self, source_doc: str = "chat_memory", limit: int = 5
+    ) -> List[Tuple[str, str, str, str]]:
+        """Returns the most recent snippets from a specific source_doc (e.g., chat_memory)."""
+        if limit <= 0:
+            return []
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, source_doc, page_or_line, raw_text
+                FROM source_snippets
+                WHERE source_doc = ?
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT ?
+                """,
+                (source_doc, limit),
+            )
+            return cursor.fetchall()

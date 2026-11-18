@@ -1,11 +1,13 @@
 """The main execution orchestrator for the conversational chat console."""
 
 import os
+import re
 import sys
 import platform
 import multiprocessing
 import subprocess
 import numpy as np
+from typing import Dict, List, Optional
 
 try:
     import psutil
@@ -35,6 +37,7 @@ def print_system_dashboard(hillock: IntegratedHillock) -> None:
     entities = hillock.kg.get_entity_count()
     relations = hillock.kg.get_relations_count()
     synapses = hillock.kg.get_synapse_count()
+    snippets = hillock.kg.get_snippet_count()
 
     ram_str = "Active"
     if psutil:
@@ -58,6 +61,7 @@ def print_system_dashboard(hillock: IntegratedHillock) -> None:
     print(f"  * Unique Entities : {entities} registered nodes")
     print(f"  * Fact Triples    : {relations} stored relations")
     print(f"  * Synapses        : {synapses} active Hebbian connections")
+    print(f"  * Snippets        : {snippets} stored text contexts")
     print(f"  * Active LLM      : {hillock.ollama_model}")
     print(f"  * Personality Mode: [{hillock.verbosity_mode}]")
     print(f"  * Debug Verbosity : [{hillock.debug_level}]")
@@ -65,7 +69,8 @@ def print_system_dashboard(hillock: IntegratedHillock) -> None:
     print(" [BUILT-IN COMMAND REFERENCE]")
     print("  * /ingest [file]                 : Index TXT/PDF files locally via TALON")
     print("  * /alias [target] [canonical]    : Merge fractured entities into one root node")
-    print("  * /mode [strict/balanced/convers]: Switch active AI response personality")
+    print("  * /remember [note]               : Save a personal fact/note directly to memory")
+    print("  * /mode [free/strict]            : Switch between FREE assistant and STRICT gate")
     print("  * /model [model_name]            : List local models or switch LLM on the fly")
     print("  * /inspect [entity]              : View stored triples & Hebbian weights")
     print("  * /status                        : Display live hardware & memory status")
@@ -75,7 +80,12 @@ def print_system_dashboard(hillock: IntegratedHillock) -> None:
     print("  * exit / quit                    : Safely terminate session")
     print("=" * 70 + "\n")
 
-def handle_cli_input(user_input: str, hillock: IntegratedHillock) -> bool:
+def handle_cli_input(
+    user_input: str,
+    hillock: IntegratedHillock,
+    history: Optional[List[Dict[str, str]]] = None,
+) -> bool:    
+
     """Processes one CLI line. Returns False when the user exits, True otherwise."""
     user_input = user_input.strip()
     if not user_input:
@@ -91,13 +101,22 @@ def handle_cli_input(user_input: str, hillock: IntegratedHillock) -> bool:
     if cmd == "/mode":
         if len(cmd_parts) == 2:
             mode_name = cmd_parts[1].strip().upper()
-            if mode_name in ["STRICT", "BALANCED", "CONVERSATIONAL"]:
+            if mode_name in ["FREE", "STRICT"]:
                 hillock.verbosity_mode = mode_name
-                print(f"Hillock [SYSTEM]: Personality mode set to [{mode_name}] successfully.")
+                print(f"Hillock [SYSTEM]: Mode set to [{mode_name}] successfully.")
             else:
-                print("Hillock [SYSTEM]: Error. Modes available: strict, balanced, conversational.")
+                print("Hillock [SYSTEM]: Error. Modes available: free, strict.")
         else:
-            print("Hillock [SYSTEM]: Error. Format is: /mode [strict/balanced/conversational]")
+            print("Hillock [SYSTEM]: Error. Format is: /mode [free/strict]")
+        return True
+
+    if cmd == "/remember":
+        if len(cmd_parts) >= 2:
+            note_text = user_input.split(maxsplit=1)[1].strip()
+            saved = hillock.remember_note(note_text)
+            print(f"Hillock [MEMORY SAVED]: Stored snippet {saved['snippet_id']} in '{saved['source_doc']}'.")
+        else:
+            print("Hillock [SYSTEM]: Error. Format is: /remember [fact or note to store]")
         return True
 
     if cmd == "/model":
@@ -175,6 +194,8 @@ def handle_cli_input(user_input: str, hillock: IntegratedHillock) -> bool:
         for ent_id in hillock.kg.get_all_entity_ids():
             hillock.hdc.get_or_allocate_hypervector(ent_id)
         print("Hillock [SYSTEM]: Database reset, re-seeded, and GloVe HDC space re-allocated.")
+        if history is not None:
+            history.clear()
         return True
 
     if cmd == "/ingest":
@@ -215,8 +236,21 @@ def handle_cli_input(user_input: str, hillock: IntegratedHillock) -> bool:
             print("Hillock [SYSTEM]: Error. Format is: /alias [target_name] [canonical_name]")
         return True
 
-    reply, primed, fingerprint, mode = hillock.execute_chat_turn(user_input)
+    reply, primed, fingerprint, mode = (
+        hillock.execute_chat_turn(user_input, history=history)
+        if history
+        else hillock.execute_chat_turn(user_input)
+    )
     print(reply)
+    if hillock.last_receipt:
+        print(f"  {hillock.format_receipt_line(hillock.last_receipt)}")
+
+    if history is not None and hillock.verbosity_mode == "FREE" and mode != "GREETING":
+        clean_reply = re.sub(r"^Hillock.*? > ", "", str(reply)).strip()
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": clean_reply})
+        if len(history) > 12:
+            del history[:-12]
 
     if hillock.debug_level in ["LOW", "FULL"]:
         if primed:
@@ -234,12 +268,13 @@ def handle_cli_input(user_input: str, hillock: IntegratedHillock) -> bool:
 
 def run_cli():
     hillock = IntegratedHillock(DB_FILE)
+    chat_history: List[Dict[str, str]] = []
     print_system_dashboard(hillock)
 
     while True:
         try:
             user_input = input("User > ").strip()
-            if not handle_cli_input(user_input, hillock):
+            if not handle_cli_input(user_input, hillock, history=chat_history):
                 break
         except KeyboardInterrupt:
             print("\nSafely shutting down local hillock.")
