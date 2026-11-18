@@ -626,7 +626,8 @@ class TalonEngine:
         self.router.model = None
         self.extractor.model = None
         gc.collect()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def process_document(self, document_text: str, batch_size: int = 16) -> List[Dict[str, str]]:
         logger.info("=== Starting TALON High-Speed Ingestion Pipeline ===")
@@ -656,12 +657,24 @@ class TalonEngine:
             batch_top_preds = self.router.select_top_predicates_batch(batch_sentences, top_k=10)
 
             for idx, sentence in enumerate(batch_sentences):
+                sent_idx = i + idx
+                win_start = max(0, sent_idx - 1)
+                win_end = min(len(sentences), sent_idx + 2)
+                context_snippet = ". ".join(sentences[win_start:win_end])
+                if context_snippet and context_snippet[-1] not in ".!?":
+                    context_snippet += "."
+
                 triples = self.extractor.extract_relations(sentence, batch_top_preds[idx])
                 for t in triples:
                     if self.t_first_triple is None:
                         self.t_first_triple = time.perf_counter()
+                    t["source_sentence"] = sentence
+                    t["context_snippet"] = context_snippet
+                    t["sentence_index"] = sent_idx
                     all_triples.append(t)
-                    logger.info(f"  * Extracted Triple [Sentence {i + idx + 1}]: [{t['subject']}] -[{t['predicate']}]-> [{t['object']}]")
+                    logger.info(
+                        f"  * Extracted Triple [Sentence {sent_idx + 1}]: [{t['subject']}] -[{t['predicate']}]-> [{t['object']}]"
+                    )
 
         self.t_last_triple = time.perf_counter()
         if self.t_first_triple is None:

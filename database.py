@@ -1,10 +1,11 @@
 """SQLite Database module representing the decoupled fact storage."""
 
+import hashlib
 import sqlite3
 import re
 import numpy as np
 from contextlib import contextmanager
-from typing import Iterator, List, Tuple, Optional, Set
+from typing import Iterator, List, Tuple, Optional, Sequence, Set
 from config import DB_FILE, SINGLE_VALUED_PREDICATES
 
 class SQLiteKnowledgeGraph:
@@ -43,6 +44,7 @@ class SQLiteKnowledgeGraph:
                     predicate TEXT,
                     target_id TEXT,
                     source_doc TEXT DEFAULT 'manual_entry',
+                    snippet_id TEXT DEFAULT NULL,
                     confidence REAL DEFAULT 1.0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (source_id, predicate, target_id),
@@ -78,6 +80,23 @@ class SQLiteKnowledgeGraph:
                     FOREIGN KEY (canonical_id) REFERENCES entities(id) ON DELETE CASCADE
                 )
             """)
+            # v1.2: Source snippets for human-readable context in FREE mode
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS source_snippets (
+                    id TEXT PRIMARY KEY,
+                    source_doc TEXT NOT NULL,
+                    page_or_line TEXT DEFAULT '',
+                    raw_text TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("PRAGMA table_info(relations)")
+            existing_relation_cols = {row[1] for row in cursor.fetchall()}
+            if "snippet_id" not in existing_relation_cols:
+                cursor.execute("ALTER TABLE relations ADD COLUMN snippet_id TEXT DEFAULT NULL")
+
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_relations_snippet_id ON relations(snippet_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_snippets_source_doc ON source_snippets(source_doc)")
             conn.commit()
 
     def seed_initial_knowledge(self) -> None:
@@ -118,6 +137,7 @@ class SQLiteKnowledgeGraph:
             cursor.execute("DROP TABLE IF EXISTS entity_aliases;")
             cursor.execute("DROP TABLE IF EXISTS entities;")
             cursor.execute("DROP TABLE IF EXISTS hdc_reservoirs;")
+            cursor.execute("DROP TABLE IF EXISTS source_snippets;")
             conn.commit()
         self._initialize_db()
         self.seed_initial_knowledge()
@@ -145,33 +165,51 @@ class SQLiteKnowledgeGraph:
         """Single relation insertion method for conversational turns."""
         self.update_relations_batch([(source_id, predicate, new_target_id)], source_type, target_type)
 
-    def update_relations_batch(self, triples: List[Tuple[str, str, str]],
-                           source_type: str = "Generic", target_type: str = "Generic",
-                           source_doc: str = "manual_entry") -> None:
+    def update_relations_batch(
+        self,
+        triples: List[Tuple[str, str, str]],
+        source_type: str = "Generic",
+        target_type: str = "Generic",
+        source_doc: str = "manual_entry",
+        snippet_ids: Optional[Sequence[Optional[str]]] = None,
+    ) -> None:
         if not triples:
             return
+
+        if snippet_ids is not None and len(snippet_ids) != len(triples):
+            raise ValueError("snippet_ids length must match triples length.")
 
         with self._connect() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute("BEGIN TRANSACTION;")
-                for source_id, predicate, new_target_id in triples:
+                for idx, (source_id, predicate, new_target_id) in enumerate(triples):
                     src_key = source_id.strip().replace(" ", "_")
                     tgt_key = new_target_id.strip().replace(" ", "_")
+                    snip_id = snippet_ids[idx] if snippet_ids is not None else None
 
-                    cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", 
-                                (src_key, src_key.replace("_", " "), source_type))
-                    cursor.execute("INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)", 
-                                (tgt_key, tgt_key.replace("_", " "), target_type))
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
+                        (src_key, src_key.replace("_", " "), source_type),
+                    )
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO entities (id, name, type) VALUES (?, ?, ?)",
+                        (tgt_key, tgt_key.replace("_", " "), target_type),
+                    )
 
                     if predicate in SINGLE_VALUED_PREDICATES:
-                        cursor.execute("DELETE FROM relations WHERE source_id = ? AND predicate = ?", 
-                                    (src_key, predicate))
+                        cursor.execute(
+                            "DELETE FROM relations WHERE source_id = ? AND predicate = ?",
+                            (src_key, predicate),
+                        )
 
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO relations (source_id, predicate, target_id, source_doc) 
-                        VALUES (?, ?, ?, ?)
-                    """, (src_key, predicate, tgt_key, source_doc))
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO relations (source_id, predicate, target_id, source_doc, snippet_id)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (src_key, predicate, tgt_key, source_doc, snip_id),
+                    )
                 conn.commit()
             except Exception:
                 conn.rollback()
@@ -273,3 +311,143 @@ class SQLiteKnowledgeGraph:
             except Exception:
                 conn.rollback()
                 raise
+
+    @staticmethod
+    def make_snippet_id(source_doc: str, page_or_line: str, raw_text: str) -> str:
+        """Generates a deterministic content ID so re-ingesting does not duplicate snippets."""
+        material = f"{source_doc}|{page_or_line}|{raw_text.strip()}".encode("utf-8")
+        return hashlib.sha256(material).hexdigest()[:24]
+
+    @staticmethod
+    def _escape_like(term: str) -> str:
+        return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    def save_snippets_batch(self, snippets: List[Tuple[str, str, str, str]]) -> None:
+        """Batch-inserts (snippet_id, source_doc, page_or_line, raw_text) rows."""
+        cleaned = [
+            (sid, doc, loc, text.strip())
+            for sid, doc, loc, text in snippets
+            if sid and text and text.strip()
+        ]
+        if not cleaned:
+            return
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("BEGIN TRANSACTION;")
+                cursor.executemany(
+                    """
+                    INSERT OR IGNORE INTO source_snippets (id, source_doc, page_or_line, raw_text)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    cleaned,
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def save_snippet(
+        self,
+        source_doc: str,
+        raw_text: str,
+        page_or_line: str = "",
+        snippet_id: Optional[str] = None,
+    ) -> str:
+        """Saves a single snippet and returns its deterministic ID."""
+        cleaned_text = raw_text.strip()
+        if not cleaned_text:
+            raise ValueError("raw_text must not be empty.")
+        sid = snippet_id or self.make_snippet_id(source_doc, page_or_line, cleaned_text)
+        self.save_snippets_batch([(sid, source_doc, page_or_line, cleaned_text)])
+        return sid
+
+    def get_snippet_count(self) -> int:
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM source_snippets")
+            return cursor.fetchone()[0]
+
+    def get_snippets_for_entities(
+        self, active_entities: Set[str], limit: int = 6
+    ) -> List[Tuple[str, str, str, str]]:
+        """Returns distinct (id, source_doc, page_or_line, raw_text) linked to active entities."""
+        if not active_entities or limit <= 0:
+            return []
+        placeholders = ", ".join(["?"] * len(active_entities))
+        query = f"""
+            SELECT DISTINCT s.id, s.source_doc, s.page_or_line, s.raw_text
+            FROM relations r
+            JOIN source_snippets s ON r.snippet_id = s.id
+            WHERE r.source_id IN ({placeholders}) OR r.target_id IN ({placeholders})
+            ORDER BY s.created_at DESC, s.id ASC
+            LIMIT ?
+        """
+        params = list(active_entities) + list(active_entities) + [limit]
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchall()
+
+    def get_snippets_for_facts(
+        self, fact_triples: Sequence[Tuple[str, str, str]], limit: int = 6
+    ) -> List[Tuple[str, str, str, str]]:
+        """Returns distinct (id, source_doc, page_or_line, raw_text) linked to specific SPO facts."""
+        if not fact_triples or limit <= 0:
+            return []
+        selected = list(fact_triples)[:25]
+        clauses = " OR ".join(
+            ["(r.source_id = ? AND r.predicate = ? AND r.target_id = ?)"] * len(selected)
+        )
+        params: List[object] = []
+        for s, p, o in selected:
+            params.extend([s, p, o])
+        params.append(limit)
+        query = f"""
+            SELECT DISTINCT s.id, s.source_doc, s.page_or_line, s.raw_text
+            FROM relations r
+            JOIN source_snippets s ON r.snippet_id = s.id
+            WHERE ({clauses})
+            ORDER BY s.created_at DESC, s.id ASC
+            LIMIT ?
+        """
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchall()
+
+    def search_snippets(
+        self, terms: Sequence[str], limit: int = 5
+    ) -> List[Tuple[str, str, str, str]]:
+        """Keyword fallback search across raw_text ranked by number of matching terms."""
+        if limit <= 0:
+            return []
+        clean_terms = list(
+            dict.fromkeys(
+                t.strip().lower() for t in terms if isinstance(t, str) and len(t.strip()) >= 3
+            )
+        )[:6]
+        if not clean_terms:
+            return []
+
+        like_patterns = [f"%{self._escape_like(t)}%" for t in clean_terms]
+        score_expr = " + ".join(
+            ["(CASE WHEN LOWER(raw_text) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END)"]
+            * len(like_patterns)
+        )
+        where_expr = " OR ".join(
+            ["LOWER(raw_text) LIKE ? ESCAPE '\\'"] * len(like_patterns)
+        )
+        query = f"""
+            SELECT id, source_doc, page_or_line, raw_text, ({score_expr}) AS hits
+            FROM source_snippets
+            WHERE {where_expr}
+            ORDER BY hits DESC, created_at DESC, id ASC
+            LIMIT ?
+        """
+        params = like_patterns + like_patterns + [limit]
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [row[:4] for row in cursor.fetchall()]
